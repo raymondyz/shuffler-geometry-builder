@@ -183,3 +183,30 @@ export function computeEnvelope(model: FootModel, events: FootEvent[], feet: num
     doubleSupport: doubleSupport / period,
   }
 }
+
+/**
+ * Body travel X(φ) (SPEC §7.4): the signed distance along x the robot has moved since φ = 0, with the
+ * stance foot rolling without slip. X(φ + Δ) = X(φ) + stepTravel, so one window of envelope pieces
+ * covers every φ; each call is one partial Gauss–Legendre integral.
+ */
+export function createTravel(model: FootModel, envelope: Envelope): (phi: number) => number {
+  const { period, start, pieces, stepTravel } = envelope
+  const speedOf = (pc: EnvelopePiece) => (phi: number) => model.sample(phi + pc.foot * period, pc.piece).v
+  // Travel from the window start to the start of each piece (same quadrature as stepTravel)
+  const before: number[] = []
+  let total = 0
+  for (const pc of pieces) {
+    before.push(total)
+    total += integrate(speedOf(pc), pc.a, pc.b, 2)
+  }
+  const fromWindowStart = (phi: number) => {
+    const k = Math.floor((phi - start) / period)
+    const t = phi - k * period
+    let i = 0
+    while (i + 1 < pieces.length && pieces[i + 1].a <= t) i++
+    const pc = pieces[i]
+    return k * stepTravel + before[i] + integrate(speedOf(pc), pc.a, Math.min(t, pc.b), 2)
+  }
+  const atZero = fromWindowStart(0)
+  return (phi) => fromWindowStart(phi) - atZero
+}

@@ -59,6 +59,13 @@
   fill: var(--text-primary);
 }
 
+.swept {
+  fill: var(--swept-fill);
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
 .orbit {
   fill: none;
   stroke: var(--axis);
@@ -82,7 +89,16 @@
 .ground {
   stroke: var(--text-secondary);
   stroke-width: 1;
-  stroke-dasharray: 6 4;
+}
+
+.rulerMinor {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+}
+
+.rulerMajor {
+  stroke: var(--text-secondary);
+  stroke-width: 1;
 }
 
 .contact {

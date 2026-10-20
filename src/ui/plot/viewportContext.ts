@@ -15,6 +15,8 @@ export interface ViewTransform {
 
 export interface ViewportApi {
   transform: ViewTransform
+  /** World rectangle currently on screen */
+  visible: Bounds
   /** World coordinates of a pointer event's client position */
   toWorld(clientX: number, clientY: number): Vec2
   /** World length of a screen distance in px (for markers that keep a constant on-screen size) */

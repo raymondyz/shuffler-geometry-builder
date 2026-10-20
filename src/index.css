@@ -18,6 +18,7 @@
   --accent-ink: #1c5cab;
   --on-accent: #ffffff;
   --envelope: rgba(11, 11, 11, 0.16);
+  --swept-fill: rgba(11, 11, 11, 0.045);
   --shadow: 0 4px 16px rgba(11, 11, 11, 0.12);
 
   /* Categorical series (validated order: blue, orange, aqua, yellow, magenta, green, violet, red) */
@@ -71,6 +72,7 @@
     --accent-ink: #86b6ef;
     --on-accent: #0b0b0b;
     --envelope: rgba(240, 239, 236, 0.2);
+    --swept-fill: rgba(240, 239, 236, 0.06);
     --shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
     --series-1: #3987e5;
     --series-2: #d95926;

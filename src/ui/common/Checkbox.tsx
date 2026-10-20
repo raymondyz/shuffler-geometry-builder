@@ -1,7 +1,8 @@
+import type { ReactNode } from 'react'
 import styles from './controls.module.css'
 
 interface CheckboxProps {
-  label: string
+  label: ReactNode
   checked: boolean
   onChange(checked: boolean): void
   title?: string

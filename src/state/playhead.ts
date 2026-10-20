@@ -2,8 +2,10 @@ import { createStore, useStore } from 'zustand'
 import { TAU, wrapTau } from '../core/math/angle'
 
 interface PlayheadState {
-  /** Cam angle of foot 1, radians */
+  /** Cam angle of foot 1, radians, in [0, 2π) */
   phi: number
+  /** Whole revolutions completed while playing, so φ + 2π·turns is continuous across the wrap */
+  turns: number
   playing: boolean
   /** Animation speed in cam revolutions per second */
   speed: number
@@ -15,6 +17,7 @@ interface PlayheadState {
  */
 export const playheadStore = createStore<PlayheadState>()(() => ({
   phi: (3 * Math.PI) / 2,
+  turns: 0,
   playing: false,
   speed: 0.25,
 }))
@@ -25,11 +28,13 @@ let frame = 0
 let lastTime = 0
 
 function tick(time: number) {
-  const { playing, phi, speed } = playheadStore.getState()
+  const { playing, phi, turns, speed } = playheadStore.getState()
   if (!playing) return
   const dt = lastTime ? Math.min(0.1, (time - lastTime) / 1000) : 0
   lastTime = time
-  playheadStore.setState({ phi: wrapTau(phi + speed * TAU * dt) })
+  const next = phi + speed * TAU * dt
+  const wraps = Math.floor(next / TAU)
+  playheadStore.setState({ phi: next - wraps * TAU, turns: turns + wraps })
   frame = requestAnimationFrame(tick)
 }
 

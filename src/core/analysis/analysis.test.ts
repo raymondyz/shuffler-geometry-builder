@@ -109,3 +109,38 @@ describe('kinematic identities on free-form feet', () => {
     }
   })
 })
+
+describe('body travel X(φ) (SPEC §7.4)', () => {
+  const base = createDefaultDesign()
+  const designs: [string, Design][] = [
+    ['arc foot', base],
+    ['flat foot', withOutline(base, flatFootOutline(presetContext(base), 50))],
+    ['teardrop, 4 feet', { ...withOutline(base, teardropOutline(presetContext(base), 50)), feet: { count: 4 } }],
+  ]
+
+  it('starts at zero and advances one stride per step and per revolution', () => {
+    for (const [name, design] of designs) {
+      const k = analyzeDesign(design).kinematics!
+      const { metrics: m, period, travelAt } = k
+      expect(travelAt(0), name).toBeCloseTo(0, 12)
+      for (const phi of [0.3, 1.7, 4.2, -2.5]) {
+        expect(travelAt(phi + period) - travelAt(phi), name).toBeCloseTo(m.direction * m.strideStep, 9)
+        expect(travelAt(phi + TAU) - travelAt(phi), name).toBeCloseTo(m.direction * m.strideRev, 9)
+      }
+    }
+  })
+
+  it('moves at the active foot’s no-slip speed', () => {
+    for (const [name, design] of designs) {
+      const k = analyzeDesign(design).kinematics!
+      const handoffs = k.envelope.handoffs.map((h) => h.phi)
+      for (let i = 0; i < 40; i++) {
+        const phi = (TAU * (i + 0.37)) / 40
+        // Skip points next to a handoff, where X′ jumps
+        if (handoffs.some((h) => Math.abs(Math.sin((phi - h) * k.feet / 2)) < 1e-3)) continue
+        const foot = k.envelopeAt(phi).foot
+        expect(fd(k.travelAt, phi, 1e-5), `${name} φ=${phi}`).toBeCloseTo(k.model.sample(phi + foot * k.period).v, 5)
+      }
+    }
+  })
+})

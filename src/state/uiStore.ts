@@ -18,6 +18,7 @@ export interface Notice {
 interface Preferences {
   units: Units
   showAllFeet: boolean
+  showSwept: boolean
   snap: boolean
   chartRange: ChartRange
 }
@@ -38,7 +39,7 @@ interface UiState extends Preferences {
 
 const PREFS_KEY = 'shuffler-geometry-builder:prefs:v1'
 
-const defaults: Preferences = { units: 'mm', showAllFeet: false, snap: true, chartRange: 'full' }
+const defaults: Preferences = { units: 'mm', showAllFeet: false, showSwept: false, snap: true, chartRange: 'full' }
 
 function loadPreferences(): Preferences {
   try {
@@ -47,6 +48,7 @@ function loadPreferences(): Preferences {
     return {
       units: saved.units === 'in' ? 'in' : 'mm',
       showAllFeet: typeof saved.showAllFeet === 'boolean' ? saved.showAllFeet : defaults.showAllFeet,
+      showSwept: typeof saved.showSwept === 'boolean' ? saved.showSwept : defaults.showSwept,
       snap: typeof saved.snap === 'boolean' ? saved.snap : defaults.snap,
       chartRange: saved.chartRange === 'envelope' ? 'envelope' : 'full',
     }
@@ -71,8 +73,8 @@ export const useUiStore = create<UiState>()((set, get) => ({
   },
   setPreference(key, value) {
     set({ [key]: value } as Pick<Preferences, typeof key>)
-    const { units, showAllFeet, snap, chartRange } = get()
-    writeStorage(PREFS_KEY, JSON.stringify({ units, showAllFeet, snap, chartRange }))
+    const { units, showAllFeet, showSwept, snap, chartRange } = get()
+    writeStorage(PREFS_KEY, JSON.stringify({ units, showAllFeet, showSwept, snap, chartRange }))
   },
   select(selection) {
     set({ selection })

@@ -1,6 +1,6 @@
 import { beziersToPath, segmentsToPath } from '../../core/curves/pathData'
 import type { Segment } from '../../core/curves/segment'
-import { piece2DToBezier, pieceToBezier, type Curve1D, type Curve2D } from '../../core/spline/curve'
+import { piece2DToBezier, pieceToBezier, type CubicBezier, type Curve1D, type Curve2D } from '../../core/spline/curve'
 
 // Path data is cached per curve object: curves are immutable and replaced on every recompute.
 const openCache = new WeakMap<object, string>()
@@ -22,6 +22,10 @@ export const curve2DPath = (c: Curve2D): string =>
 /** SVG path for the graph (t, v(t)) of a scalar curve, drawn exactly as cubic Béziers. */
 export const curve1DPath = (c: Curve1D): string =>
   cached(openCache, c, () => beziersToPath(c.pieces.map(pieceToBezier)))
+
+/** SVG path for a closed loop of cubic Béziers. */
+export const closedBeziersPath = (beziers: CubicBezier[]): string =>
+  cached(closedCache, beziers, () => `${beziersToPath(beziers)} Z`)
 
 export const segmentsPath = (segments: Segment[], closed = false): string =>
   cached(closed ? closedCache : openCache, segments, () => segmentsToPath(segments, closed))

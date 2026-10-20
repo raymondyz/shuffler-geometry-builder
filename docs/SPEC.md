@@ -184,6 +184,42 @@ $$s(\varphi) = R(-\alpha(\varphi))\,\bigl(P_s - P_1(\varphi)\bigr).$$
 
 For the centreline slot, s = (0, |Ps − P1|), with |Ps − P1| ∈ [|Ps − P0| − L, |Ps − P0| + L]. The slot cut-out is the pin circle (radius r_pin + clearance) swept along s(φ). For the centreline slot that is an obround of length 2L + 2(r_pin + c) and width 2(r_pin + c), centred at (0, |Ps − P0|). This is generated, not drawn by the user.
 
+### 4.6 Swept area (keep-out zone) ✔
+
+Everything a foot occupies over one revolution, in the body frame, is
+
+$$S = \bigcup_{\varphi} W(F, \varphi)$$
+
+where F is the solid foot (the region inside Γ). Anything placed inside S, in the plane of a foot (standoffs, frame members, armour, wiring), will be hit. The outer boundary of S is the keep-out line.
+
+- **One region for every foot.** The feet differ only in phase, so they all sweep the same S, each in its own plane.
+- **Holes don't matter.** The bore and slot are holes in F and don't change the outer boundary. The stationary shaft sits in the small hole of S that the slot leaves. Only the outer boundary is drawn.
+- **The cam.** The cam disc rides inside the bore, so it adds nothing while the foot wall around the bore is valid. When it isn't, the disc pokes out. Its sweep is a disc of radius L + r_cam about P0, which is included so the line stays correct.
+
+**Envelope condition.** In the foot frame, a foot point q moves with velocity R(−α) W_φ = u + α′ J q, where u = R(−α) P1′. Parametrise Γ by σ, with unit outward normal n(σ). The normal velocity of the outline is
+
+$$g(\sigma,\varphi) = (u + \alpha' J q)\cdot n = u\cdot n + \alpha'\,(q\times n) = a(\varphi)\cdot b(\sigma)$$
+
+with a = (uₓ, u_y, α′) (the foot's motion) and b = (nₓ, n_y, q × n) (the outline's normal line). The cam angle and the outline separate, which makes g cheap to tabulate.
+
+- **Boundary points need g = 0.** A point of Γ whose normal velocity is not zero is covered by poses slightly before or after, so it lies inside S.
+- **Geometric reading.** g = 0 means the outline's normal at q passes through the foot's instantaneous centre of rotation, c = J u / α′ in the foot frame.
+- **Fold of the sweep.** The Jacobian of the sweep map (σ, φ) ↦ W is W_σ × W_φ = −|q_σ| g. So g = 0 is exactly where the moving outline folds over itself.
+- **Corners.** At a corner, the condition holds for some normal inside the corner's normal cone, and the candidate is the corner's own path W(q_c, φ). Model each corner as a zero-length piece whose normal turns from the incoming to the outgoing normal. Then g is continuous all the way round Γ.
+
+The candidate set K = {W(σ, φ) : g(σ, φ) = 0} therefore satisfies ∂S ⊂ K ⊂ S. The three identities above (the normal velocity, the Jacobian and g_φ) were checked against finite differences.
+
+**Outer boundary.** P0 is always inside S, because the cam covers it. The boundary's distance from P0 in direction θ is
+
+$$R(\theta) = \max\,\{\,|k| \;:\; k\in K,\ k \parallel n(\theta)\,\}$$
+
+because the farthest point of S on a ray lies on ∂S ⊂ K and no candidate lies outside S.
+
+- **When it is exact.** The curve r = R(θ) is exactly the outer boundary when every pose of the foot is star-shaped about P0. In the foot frame that means (q − o(φ))·n ≥ 0 all round Γ for every φ, where o(φ) = R(−α)(P0 − P1) is P0 seen from the foot. Practical feet pass easily.
+- **When it isn't.** A hook or a deep notch facing away from P0 breaks the condition. Then r = R(θ) bounds the radial hull of S. That still contains all of S, so it is a safe, slightly larger keep-out line. The tool reports which case applies.
+
+**Shape of the boundary.** The boundary is smooth along each candidate branch. Where one part of the foot takes over from another, two branches cross and the boundary has an inward (reflex) corner. At a candidate point, the boundary is tangent to the moving outline, or to the corner's path for a corner. With T its unit tangent, the exact derivative for spline fitting is dW/dθ = R T / (T·n′(θ)).
+
 ---
 
 ## 5. Ground contact
@@ -287,6 +323,17 @@ So the foot behaves like a wheel of variable radius h, rolled through the tilt, 
 ### 7.3 Stride is not the width of the path ✔
 
 The trace moves at C₀ₓ′ = P1ₓ′ + α′(h − ρ), while the ground moves past at P1ₓ′ + α′h. The difference α′ρ is rolling. With an arc foot (constant r) the trace is a circle only 2L wide, but the robot travels much further per step (§9: a 12 mm wide trace gives 67 mm per revolution). The forward-motion view and the stride metric must use v(φ), never the trace geometry.
+
+### 7.4 Travel X(φ) and the moving ground ✔
+
+The robot's travel is the integral of the active foot's speed:
+
+$$X(\varphi) = \int_0^{\varphi} v_{k^*(\varphi')}(\varphi')\,d\varphi'$$
+
+- **Periodicity.** The feet are identical and evenly phased, so X(φ + Δ) = X(φ) + ΔX_step, where ΔX_step is the signed travel per step. One envelope window therefore gives X for every φ, and X(φ + 2π) = X(φ) ± S_rev.
+- **Continuity.** X is continuous. Its slope jumps at handoffs by the handoff slip K_x.
+- **The ground in the body frame.** The ground sits at height E(φ) and slides horizontally by G(φ) = −X(φ). The contact's material point is still on the ground, so the ground moves at P1ₓ′ + α′h, exactly the foot's material speed at the contact (§7.1).
+- **Path view.** The ground is drawn as a ruler fixed to it. The tick marks move exactly as the robot would see the floor go by, including speed ripple and the change of speed at handoffs.
 
 ---
 
@@ -421,7 +468,14 @@ On each event-free interval [a, b], fit a cubic Hermite piece from the exact val
 
 ### 11.7 Integration
 
-Stride integrates v(φ) with 8-point Gauss–Legendre quadrature, two panels per event-free piece of the envelope. v is C∞ there, so the result is near machine precision. A stored X(φ) curve (a Curve1D with X′ = v exact) will be added with the forward-motion view.
+Stride integrates v(φ) with 8-point Gauss–Legendre quadrature, two panels per event-free piece of the envelope. v is C∞ there, so the result is near machine precision.
+
+`Kinematics.travelAt(φ)` evaluates X(φ) (§7.4) the same way. It adds three parts:
+- the travel up to each envelope piece of one window, computed once;
+- whole windows, using X(φ + Δ) = X(φ) + ΔX_step;
+- one partial integral up to φ (16 evaluations).
+
+That is exact to quadrature precision and costs tens of microseconds, cheap enough to call every animation frame. A stored Curve1D for X can come with the forward-motion view.
 
 ### 11.8 Envelope algorithm
 
@@ -433,6 +487,20 @@ Stride integrates v(φ) with 8-point Gauss–Legendre quadrature, two panels per
 ### 11.9 Tolerances and performance budget
 
 An evaluation is one constraint solve plus one support-map lookup, about a microsecond in JS. A full analysis (events, foot-0 fits, envelope, quadrature) is about 10⁴ evaluations, so it lands comfortably under 4 ms: measured at about 2 ms for each preset, including outline preparation. The support map is rebuilt only when the outline changes, and the mechanism stage only when L, Ps or the constraint change (§12.4). If future features (an optimiser, design sweeps) exceed the budget, the pure core moves into a Web Worker without code changes (§12.2).
+
+### 11.10 Swept-area algorithm
+
+Implements §4.6.
+
+1. **Loop pieces.** The CCW outline becomes a loop of pieces: each segment, plus a zero-length corner piece wherever the tangent turns. σ = piece index + local parameter.
+2. **Grid.** Tabulate g = a(φ)·b(σ) on 360 φ rows × σ columns (48 per cubic, one per 3.75° of arc, 4 per line or corner). a is computed once per row and b once per column, so each cell costs one 3-term dot product.
+3. **Contours.** Marching squares, periodic in both σ and φ, finds the zero set of g. Each crossing is mapped into the body frame, giving short chords of the candidate curves K.
+4. **Seeds.** The chords are rasterised onto 720 rays from P0, keeping the farthest hit on each ray with its (σ, φ). The cam disc's sweep competes as a circle.
+5. **Trace.** Walk round the rays. On each ray, Newton's method solves {W(σ, φ) on the ray, g(σ, φ) = 0}, continuing the current branch. If the ray's seed comes from a different branch and could be further out, it is solved too, and the outer one wins. A change of branch is located exactly by Brent's method on R_A(θ) − R_B(θ).
+6. **Fit.** Each branch's θ-interval is fitted with adaptive cubic Hermites (tolerance 10⁻⁴ mm) from the exact point and derivative at any θ, then stored as Béziers. The reflex corners between branches are exact crossings.
+7. **Star check.** On the same grid, the minimum of (q − o(φ))·n decides whether the result is exact or the conservative radial hull.
+
+Accuracy: every boundary point comes from the exact equations, and the splines are within 10⁻⁴ mm of them. The grid only supplies starting points. A branch that pokes out by less than the grid's chord error (about 0.05 mm at worst) over less than one ray spacing (0.5°) could be missed. In tests it agrees with a brute-force union of 2000 poses to better than 0.001 mm, and it always lies on or just outside it. It takes 2–7 ms and runs lazily, only when a view asks for it.
 
 ---
 
@@ -459,7 +527,8 @@ src/
                        contactPieces, supportMap (+ hullFragments), pathData (SVG path strings)
     spline/            curve (Hermite pieces, adaptive fit, Bézier conversion)
     mechanism/         drive (eccentric), constraints/ (types, registry, centerlineSlot)
-    analysis/          prepare (outline stage), foot (evaluator), events, footCurves, envelope, metrics, analyze (pipeline)
+    analysis/          prepare (outline stage), foot (evaluator), events, footCurves, envelope, metrics,
+                       swept (keep-out zone, §4.6), analyze (pipeline)
     design/            schema, defaults, presets, hardware (derived sizes), validate,
                        outlineEdit (free edits, OutlineOps), mirror (symmetric editing), serialize
     export/            parts (sheet layout, cam variants), svg, dxf
@@ -472,7 +541,7 @@ src/
     plot/              Viewport (pan/zoom world view) + viewportContext, Legend, ticks, paths
     views/             types, registry, ViewArea, palette, path/PathView, height/HeightChart,
                        editor/ (FootEditor, EditorCanvas, Inspector, Overlays, useOutlineOps, useWorldDrag),
-                       shared/ (MechanismGlyphs, Transport)
+                       shared/ (MechanismGlyphs, GroundRuler, Transport)
     panels/            ParametersPanel (Mechanism, Hardware), MetricsPanel (Results, More results), IssuesPanel
     layout/            AppShell, Header, SaveDialog, fileActions
     hooks/             useElementSize, useShortcuts, keyboard (focus helpers)
@@ -536,7 +605,7 @@ design.hardware ──► slot/validity checks ───────────
 
 Each stage is memoised on the identity of its inputs. Design updates are immutable, so unchanged sub-objects keep their identity. Dragging an outline handle reruns preprocess, supportMap and analyze; changing L skips the outline stages. Editor drags apply at most one update per animation frame.
 
-`Analysis` holds the prepared outline, the mechanism, `issues`, and `kinematics` (null when a blocking error exists). `Kinematics` exposes the exact foot evaluator `model.sample(φ, piece?)` (pose, contact, y, v and derivatives), `envelopeAt(φ)`, the fitted curves (`curves.height`, `curves.trace`, `curves.speed`, `envelope`), `metrics` and `bands`. It also has **lazily computed, cached** extras for views (`stanceTrace()`, `hull()`, `cycleBand()`, `stanceBand()`). A new view that needs new derived data adds one lazy getter and costs nothing when it isn't shown.
+`Analysis` holds the prepared outline, the mechanism, `issues`, `kinematics` (null when a blocking error exists) and a lazy `swept()` (the keep-out zone, §4.6; it depends on the cam size, so it sits outside `Kinematics` and is memoised on the kinematics, outline and cam radius). `Kinematics` exposes the exact foot evaluator `model.sample(φ, piece?)` (pose, contact, y, v and derivatives), `envelopeAt(φ)`, `travelAt(φ)` (the robot's travel X, §7.4), the fitted curves (`curves.height`, `curves.trace`, `curves.speed`, `envelope`), `metrics` and `bands`. It also has **lazily computed, cached** extras for views (`stanceTrace()`, `hull()`, `cycleBand()`, `stanceBand()`). A new view that needs new derived data adds one lazy getter and costs nothing when it isn't shown.
 
 ### 12.5 Extension points
 
@@ -595,8 +664,8 @@ interface ViewDefinition {
 ### 12.6 State and playhead
 
 - `designStore` (zustand) holds the design and its undo/redo history. A slider or drag gesture is merged into one undo entry. It autosaves to localStorage (debounced).
-- `uiStore` holds display preferences (units, show all feet, snap, chart range; persisted), the editor selection, notices and the open dialog.
-- The `playhead` (current φ, playing, speed) is a separate tiny store driven by `requestAnimationFrame`. Views subscribe through zustand selectors and only update the animated elements, so panels don't re-render 60 times a second. The playhead is shared, so the animation, the height-chart cursor and every future view stay in sync, and scrubbing any view moves all of them.
+- `uiStore` holds display preferences (units, show all feet, show swept area, snap, chart range; persisted), the editor selection, notices and the open dialog.
+- The `playhead` (current φ, whole revolutions completed, playing, speed) is a separate tiny store driven by `requestAnimationFrame`. Counting revolutions keeps travel-based animation (the moving ground) continuous across the 360° → 0° wrap; scrubbing stays within the current revolution. Views subscribe through zustand selectors and only update the animated elements, so panels don't re-render 60 times a second. The playhead is shared, so the animation, the height-chart cursor and every future view stay in sync, and scrubbing any view moves all of them.
 - All localStorage access goes through `state/storage`, which never throws (private windows, blocked storage).
 
 ### 12.7 Rendering
@@ -612,14 +681,16 @@ Automated (`npm test`, vitest):
 
 - **Support map:** matches dense brute force on random, often non-convex outlines; the h′ identity; circles and squares (arcs, corners, flat edges); the hull encloses the outline.
 - **Kinematics:** the §9 regression values (to 3–6 decimal places); the arc foot's path is a circle of radius L; derivatives vs finite differences; no-slip v vs the finite-difference velocity of a frozen material point; envelope vs the brute-force lowest foot; fitted curves within tolerance; random non-convex feet stay finite.
+- **Travel:** X(0) = 0; X(φ + 2π) − X(φ) = ±S_rev and X(φ + Δ) − X(φ) = ±S_step; X′ matches the active foot's v by finite differences.
 - **Splines:** Hermite fits within tolerance; exact Bézier conversion.
 - **Design:** JSON round trip, readable errors for bad files, older files still open; presets valid with no stance contact jumps; outline edits (insert keeps the shape, delete, smooth handles, arc → cubic); cam sizing.
-- **Mirror:** symmetrising symmetric and random outlines, idempotence, refusing one-sided outlines; mirrored edits from either side; paired insert/delete; analysis unchanged; file round trip.
+- **Swept area:** a circular foot gives a circle of radius R + L. The result matches a brute-force union of 2000 poses (plus each corner's path), ray by ray from P0, to under 0.001 mm for the default foot, every preset and random feet with an offset pin. A hooked foot is flagged as conservative and matches the brute-force radial hull. The cam's sweep is included where it pokes out. The boundary is closed and counter-clockwise.
+- **Mirror:** on by default in canonical form; symmetrising symmetric and random outlines, idempotence, refusing one-sided outlines; mirrored edits from either side; paired insert/delete; analysis unchanged; file round trip.
 - **Export:** part layout; SVG uses exact arc and cubic commands; DXF has splines, arcs and mm units.
 
 Checked by hand during development, not automated yet:
 
-- **Performance:** about 2 ms per full analysis (§11.9).
+- **Performance:** about 2 ms per full analysis (§11.9); the swept area adds 2–7 ms, only when drawn.
 - **DXF validity:** an exported file parsed cleanly with an independent reader (dxf-parser).
 - **UI:** headless-Chrome scripts at laptop, tablet-landscape and tablet-portrait sizes, in light and dark mode.
 - **Offset-slot formula (§4.4):** verified numerically while writing this spec; it gets a unit test when the offset slot is implemented.
@@ -653,8 +724,14 @@ The design's name sits next to the app title. The File menu holds New, Open, Sav
 ### 13.2 Path view and animation
 
 - Fixed elements: P0 (shaft), Ps (pin), the cam circle (path of P1), and the full lowest-point path C₀(φ) with the stance portion highlighted.
-- Animated elements: the cam disc at P1, the foot posed by (P1, α) with its slot, the contact point, and the ground line at E(φ) (dashed).
-- Header: a legend (path, stance) and a "Show all feet" toggle.
+- Animated elements: the cam disc at P1, the foot posed by (P1, α) with its slot, the contact point, and the ground at E(φ).
+- The ground is a ruler in the display unit, with ticks hanging below the line:
+  - **mm:** every 10 mm and every 1 mm.
+  - **in:** like a tape measure, at 1″, ½″, ¼″, ⅛″ and 1/16″ with decreasing length.
+  - **Zoom:** finer levels are hidden while they would be less than 2.5 px apart on screen. At the default laptop zoom every level shows.
+- The ruler slides with the ground by −X(φ) (§7.4), so it shows the robot's actual no-slip forward motion.
+- Swept area (§4.6): everything the foot and cam occupy over a revolution, shaded behind the mechanism with its outline. Anything inside it, in the plane of a foot, can jam the shuffler. If the foot isn't star-shaped about P0, a note says the line is conservative. Off by default; while hidden it isn't computed.
+- Header: a legend (path, stance), a "Swept area" toggle that carries its own swatch, and "Show all feet" (both toggles are remembered).
 - Footer: the play bar (play/pause, φ scrubber, φ readout, speed). It drives the shared playhead, so the height chart follows it too.
 
 ### 13.3 Height chart (y vs φ)
@@ -670,7 +747,7 @@ The design's name sits next to the app title. The File menu holds New, Open, Sav
 - **Inspector** for the selection: anchor type (corner / smooth / symmetric), X, Y, r and θ about P1, and Delete; edge type (Bézier / line / arc), arc sweep and Add anchor.
 - **Snap to grid:** anchors and handles snap to 0.5 mm, or 1/32 in when showing inches.
 - **Overlays (kept minimal):** faint rings about P1, the cam bore, the generated slot, and one blue band on the part of the outline that touches the ground during stance (§5.2.2).
-- **Mirror option:** keeps the foot symmetric about its centreline (x = 0). Turning it on keeps the right half and reflects it.
+- **Mirror option:** on by default for new designs. Keeps the foot symmetric about its centreline (x = 0). Turning it on keeps the right half and reflects it.
   - The outline is held in a canonical form: counter-clockwise, node 0 is the bottom anchor on the axis, node n/2 the top anchor on the axis, and the left half is the mirror of the right.
   - Every edit is mapped to the right half and the left half is rebuilt (`core/design/mirror.ts`), so editing either side works and the shape is always exactly symmetric.
   - The two axis anchors cannot move sideways or be deleted. When smooth, they keep horizontal handles.
@@ -732,7 +809,8 @@ Blocking errors stop the analysis, and the views show a message instead of resul
 4. ~~**Export/import:** JSON, SVG, DXF (with cam variants and frame holes).~~ Done.
 5. ~~**Polish:** simplified UI (secondary results and hardware collapsed), automatic cam size, mirror editing, named saves.~~ Done.
 6. **Next:** forward-motion view (X(φ), v(φ)), full-module animation with moving ground, offset/angled slot constraint.
-7. **Later:** curved slots, inverse design, swept envelope, design comparison, optimiser (weighted bob/stride/smoothness), loads.
+7. ~~**Swept area:** keep-out outline in the path view (§4.6, §11.10).~~ Done. Export as a reference layer is a natural follow-up.
+8. **Later:** curved slots, inverse design, design comparison, optimiser (weighted bob/stride/smoothness), loads.
 
 ## 17. Decisions and open questions
 
@@ -744,8 +822,9 @@ Decided (2026-10-20):
 - **Robot model:** 2D, with both modules in sync and the body parallel to the ground.
 - **UI density:** only what matters while tuning is visible (bob, stride, handoff kink, speed ripple). Secondary results, hardware and shaft speed sit in collapsed sections.
 - **Cam size:** derived, not an input. The cam radius is L + shaft hole + minimum wall, so the minimum wall doubles as the cam's margin around the shaft.
-- **Mirror:** optional and saved with the design. Turning it on keeps the right half; mirrored outlines use the canonical form in §13.4.
+- **Mirror:** optional, on by default for new designs, and saved with the design. Files without the flag open unmirrored so their geometry never changes. Turning it on keeps the right half; mirrored outlines use the canonical form in §13.4.
 - **Saving:** Save… asks for a name, which is stored in the design and used for every file name.
+- **Swept area:** exact outer boundary of the foot's sweep (plus the cam's), computed from the envelope condition rather than by sampling poses. If a foot isn't star-shaped about P0, the line falls back to the radial hull, which is never smaller than the true area.
 
 Still open:
 

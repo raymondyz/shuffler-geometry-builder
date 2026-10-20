@@ -4,9 +4,13 @@ import { compileOutline, signedArea, type Outline } from '../curves/outline'
 import { mulberry32, randomOutline } from '../test/helpers'
 import { createDefaultDesign } from './defaults'
 import { mirrorOps, symmetrize } from './mirror'
+import { arcFootOutline, presetContext } from './presets'
 import { parseDesign, serializeDesign } from './serialize'
 
 const close = (a: number, b: number) => Math.abs(a - b) < 1e-9
+
+/** The default arc foot as the preset builds it, before mirroring */
+const plainArcFoot = (): Outline => arcFootOutline(presetContext(createDefaultDesign()), 50, 70)
 
 /** Every anchor j mirrors anchor n−j, handles swap and reflect, and edges pair up. */
 function expectSymmetric(o: Outline) {
@@ -29,7 +33,7 @@ function expectSymmetric(o: Outline) {
 
 describe('symmetrize', () => {
   it('keeps the shape of an already symmetric foot', () => {
-    const outline = createDefaultDesign().foot.outline
+    const outline = plainArcFoot()
     const sym = symmetrize(outline)!
     expectSymmetric(sym)
     expect(signedArea(compileOutline(sym))).toBeCloseTo(signedArea(compileOutline(outline)), 6)
@@ -45,19 +49,25 @@ describe('symmetrize', () => {
   })
 
   it('is idempotent', () => {
-    const once = symmetrize(createDefaultDesign().foot.outline)!
+    const once = symmetrize(plainArcFoot())!
     expect(symmetrize(once)).toEqual(once)
   })
 
   it('refuses outlines entirely on one side', () => {
-    const outline = createDefaultDesign().foot.outline
+    const outline = plainArcFoot()
     const shifted = { ...outline, nodes: outline.nodes.map((nd) => ({ ...nd, p: { x: nd.p.x + 200, y: nd.p.y } })) }
     expect(symmetrize(shifted)).toBeNull()
   })
 })
 
 describe('mirrored editing', () => {
-  const base = symmetrize(createDefaultDesign().foot.outline)!
+  const base = symmetrize(plainArcFoot())!
+
+  it('is on by default, with the default foot in canonical form', () => {
+    const { foot } = createDefaultDesign()
+    expect(foot.mirror).toBe(true)
+    expectSymmetric(foot.outline)
+  })
   const n = base.nodes.length
 
   it('moving a node on either side moves its twin', () => {
@@ -104,7 +114,7 @@ describe('mirrored editing', () => {
 
   it('does not change the analysis of a symmetric foot', () => {
     const design = createDefaultDesign()
-    const plain = analyzeDesign(design).kinematics!.metrics
+    const plain = analyzeDesign({ ...design, foot: { outline: plainArcFoot(), mirror: false } }).kinematics!.metrics
     const mirrored = analyzeDesign({ ...design, foot: { outline: base, mirror: true } }).kinematics!.metrics
     expect(mirrored.bob).toBeCloseTo(plain.bob, 9)
     expect(mirrored.strideRev).toBeCloseTo(plain.strideRev, 9)

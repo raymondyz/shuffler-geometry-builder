@@ -145,13 +145,17 @@ export function Viewport({ bounds, children, overlay, onBackgroundClick, ariaLab
     if (!view) return null
     return {
       transform: view,
+      visible: {
+        min: { x: -view.tx / view.scale, y: (view.ty - size.height) / view.scale },
+        max: { x: (size.width - view.tx) / view.scale, y: view.ty / view.scale },
+      },
       toWorld(clientX, clientY) {
         const p = localPoint(svg, clientX, clientY)
         return { x: (p.x - view.tx) / view.scale, y: -(p.y - view.ty) / view.scale }
       },
       px: (pixels) => pixels / view.scale,
     }
-  }, [view, svg])
+  }, [view, svg, size])
 
   return (
     <div ref={containerRef} className={styles.viewport}>
