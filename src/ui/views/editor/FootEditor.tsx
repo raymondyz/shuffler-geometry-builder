@@ -2,26 +2,17 @@ import { useEffect, useMemo } from 'react'
 import type { Analysis } from '../../../core/analysis/analyze'
 import { outlineOps, symmetrize } from '../../../core/design/mirror'
 import { footPresets, presetContext } from '../../../core/design/presets'
-import { length } from '../../../core/math/vec2'
 import { updateDesign, useDesignStore } from '../../../state/designStore'
 import { useUiStore } from '../../../state/uiStore'
 import { Checkbox } from '../../common/Checkbox'
 import { isTextEntry } from '../../hooks/keyboard'
 import controls from '../../common/controls.module.css'
 import { Viewport } from '../../plot/Viewport'
-import type { Bounds } from '../../plot/viewportContext'
+import { editorBounds } from './editorBounds'
 import type { ViewProps } from '../types'
 import { EditorCanvas } from './EditorCanvas'
 import { Inspector } from './Inspector'
 import { updateOutline } from './outlineActions'
-
-function editorBounds(analysis: Analysis): Bounds {
-  const pts = analysis.outline?.polyline() ?? []
-  const reach = Math.max(30, ...pts.map(length))
-  const top = length(analysis.mechanism.constraint.pin) + analysis.design.drive.L
-  return { min: { x: -reach, y: -reach }, max: { x: reach, y: Math.max(reach, top + 10) } }
-}
-
 
 function PresetMenu({ analysis }: { analysis: Analysis }) {
   const select = useUiStore((s) => s.select)

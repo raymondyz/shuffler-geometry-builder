@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Analysis } from '../../core/analysis/analyze'
+import { useUiStore } from '../../state/uiStore'
 import { Panel } from '../common/Panel'
 import styles from '../common/layout.module.css'
 import { views } from './registry'
@@ -13,7 +14,8 @@ interface ViewAreaProps {
 
 /** Renders the views registered for one layout area, as tabs when there are several. */
 export function ViewArea({ area, analysis, className }: ViewAreaProps) {
-  const entries = views.filter((v) => v.area === area)
+  const mode = useUiStore((s) => s.mode)
+  const entries = views.filter((v) => v.area === area && (!v.modes || v.modes.includes(mode)))
   const [activeId, setActiveId] = useState(entries[0]?.id)
   const active = entries.find((v) => v.id === activeId) ?? entries[0]
   if (!active) return null

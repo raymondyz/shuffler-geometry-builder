@@ -1,6 +1,8 @@
 import type { Analysis } from '../../core/analysis/analyze'
 import { useDesignStore } from '../../state/designStore'
-import { useUiStore } from '../../state/uiStore'
+import { useGeneratorStore } from '../../state/generatorStore'
+import { useUiStore, type AppMode } from '../../state/uiStore'
+import { useDesignAnalysis } from '../../state/useAnalysis'
 import { Button } from '../common/Button'
 import { Icon } from '../common/Icon'
 import { Menu } from '../common/Menu'
@@ -33,6 +35,13 @@ export function Header({ analysis }: { analysis: Analysis }) {
   const canExport = analysis.outline !== null
   const dialog = useUiStore((s) => s.dialog)
   const openDialog = useUiStore((s) => s.openDialog)
+  const mode = useUiStore((s) => s.mode)
+  const design = useDesignStore((s) => s.design)
+  const designAnalysis = useDesignAnalysis()
+  const switchMode = (next: AppMode) => {
+    if (next === 'generate') useGeneratorStore.getState().ensureBrief(design, designAnalysis)
+    useUiStore.getState().setMode(next)
+  }
   return (
     <header className={styles.header}>
       <h1 className={styles.title}>Shuffler Geometry Builder</h1>
@@ -51,6 +60,15 @@ export function Header({ analysis }: { analysis: Analysis }) {
         <Button icon="undo" aria-label="Undo" title="Undo (Ctrl/⌘ Z)" disabled={!canUndo} onClick={undo} />
         <Button icon="redo" aria-label="Redo" title="Redo (Ctrl/⌘ Shift Z)" disabled={!canRedo} onClick={redo} />
       </div>
+      <SegmentedControl<AppMode>
+        label="Mode"
+        value={mode}
+        onChange={switchMode}
+        options={[
+          { value: 'design', label: 'Design', title: 'Edit the current design' },
+          { value: 'generate', label: 'Generate', title: 'Describe what you need and let the tool design the foot and mechanism' },
+        ]}
+      />
       <span className={styles.spacer} />
       <SegmentedControl<Units>
         label="Display units"

@@ -62,7 +62,7 @@ For now the user tunes parameters and every view updates live. Automatic optimis
 - **Results:** bob, stride and the main smoothness parts always visible, the rest one click away (§8, §13.5), all live.
 - **Foot editor:** intuitive spline editing of the full outline (pen-tool style Bézier editing, arcs, presets, numeric entry in Cartesian or polar about P1).
 - **Export/import:** CAD-ready geometry (DXF, SVG) and a native design file (JSON) that round-trips, saved under a user-chosen name.
-- **Future views** (must be easy to add): forward displacement/speed vs φ, full-module animation (all feet + moving ground), swept envelope of the foot, pin/slot loads, design comparison, optimiser.
+- **Future views** (must be easy to add): forward displacement/speed vs φ, full-module animation (all feet + moving ground), pin/slot loads, design comparison, generator (§10, §13.6). (The swept area is done, §4.6.)
 
 ### 2.2 Non-functional
 
@@ -398,7 +398,192 @@ Take Ps = (0, D) directly above P0 with D > L, and r ≡ R over the active band.
 
 ---
 
-## 10. Inverse design (future feature) ✔
+## 10. Generator ✔
+
+**Status: built** (`core/generate`, Generate mode in §13.6). The method was first prototyped with a real LP solver and checked by brute force (§10.10). The notes below describe the implementation; items marked *later* are not built yet.
+
+### 10.1 What it does
+
+The user describes the hardware, the available space, what may change and what matters. The generator returns a few good, different designs. Each candidate is a complete design (N, L, pin, outline, mirror flag) that the normal pipeline analyses, so every number the user sees is exact, never the optimiser's own estimate.
+
+### 10.2 Inputs
+
+| Group | Input | Notes |
+|---|---|---|
+| Layout | Symmetric | Mirror on, pin offset 0, stance centred under the shaft. Halves the unknowns. |
+| | Feet | Allowed counts, e.g. 3–5, or one fixed value |
+| | Eccentricity L | Fixed or a range |
+| | Pin height | Fixed, a range, or free (limited only by space and walls) |
+| | Pin offset | Asymmetric only: fixed or a range |
+| Hardware | Shaft type and size, pin diameter, clearance, minimum wall | Shared with the design (§13.5). Cam and bore sizes follow from them (§12.3). |
+| Space | Ride height | Shaft height above the ground: fixed, a range, or free |
+| | Room above the shaft, room in front, room behind | The swept area (§4.6) must fit inside this box. The path view draws the box. |
+| Shape | Minimum contact radius | Smallest radius of curvature where the foot touches the ground (wear, contact stress). Also rules out corners there. Default 5 mm. |
+| | Lift 10° after handoff | How far the other feet must have risen 10° of cam after a handoff (stored as mm per radian). Zero allows double support and scrub (§6.3). |
+| Goals | See §10.6 | Bob, stride per revolution, speed ripple, handoff kink, handoff slip (asymmetric only), foot lift |
+
+The brief starts from the current design (Reset does this again):
+- **Mechanism:** its feet count plus 3–5, and its L −40 %/+50 % as the eccentricity range. Pin height is free.
+- **Ride height:** its value ± 5 mm.
+- **Space:** its swept area plus 5 mm all round.
+- **Goals:** Balanced, scaled to its stride.
+
+In the UI, symmetric designs get one "room each side" value, because their swept area is symmetric.
+
+Later inputs worth adding:
+- goals in time units (m/s, g) via the shaft RPM, and peak vertical acceleration and swept size as goals;
+- a motor torque limit, expressed as a cap on the peak speed ratio v (mm/rad), since torque per newton of push equals v;
+- the cutter radius for concave corners;
+- robot weight, for contact stress.
+
+### 10.3 Key fact: with the mechanism fixed, everything is linear in h
+
+Fix N, L and Ps. Then P1(φ), α(φ) and its derivatives are known functions, and every quantity the tool reports is linear in the support function h:
+
+- height y₀ = P1y − h(ψ) (§5.1) and its slope y₀′ = P1y′ + α′ h′ (§5.3);
+- vertical acceleration y₀″ = P1y″ − α′² h″ + α″ h′;
+- speed v = −(P1x′ + α′ h) (§7.1) and stride S_step = −∫_W v dφ;
+- handoff kink K_y and slip K_x, which are differences of y₀′ and of v at the handoff;
+- contact points q(ψ) = h n(ψ) + h′ n′(ψ), and their body-frame position at any pose;
+- radius of curvature ρ = h + h″.
+
+So if h is a linear combination of basis functions, the following all become linear constraints or objectives:
+- bob (max − min of y₀ over the stance window);
+- ripple (max − min of v, with the stride fixed);
+- kink and slip;
+- ride height, wall thickness and "every contact point stays inside the space box".
+
+The max, min and absolute values use the standard LP reformulations. **For a given mechanism, the best contact profile is a linear program**, solved to its global optimum in milliseconds.
+
+### 10.4 Profile representation
+
+Parametrise the contact profile by its radius of curvature, as a uniform cubic B-spline over the cycle band (16 coefficients):
+
+$$\rho(\psi) = \sum_j c_j B_j(\psi),\qquad h(\psi) = a\cos\psi + b\sin\psi + \int_{\psi_0}^{\psi}\rho(t)\,\sin(\psi - t)\,dt$$
+
+ψ₀ is the middle of the band. Integrating from there matters: for a band centred on −π/2, symmetric c_j with a = 0 then give an exactly mirror-symmetric profile. Integrating from one end does not, and the symmetric LP turned infeasible in testing. The integrals of the B-spline against cos t and sin t use 8-point Gauss–Legendre per knot interval, so they are exact to machine precision.
+
+- **Exact curvature.** h + h″ = ρ holds exactly. Requiring c_j ≥ ρ_min makes the profile convex with radius at least ρ_min everywhere, not just at sample points, because a B-spline lies within the range of its coefficients.
+- **Position.** (a, b) places the profile relative to P1.
+- **Symmetric designs.** Set a = 0 and make the c_j symmetric about ψ = −π/2.
+- **Why not a spline of h directly?** The prototype first tried constraining h + h″ on a spline of h. The h″ coefficients are about 2500 times larger than h's, and the solver's tolerance became 0.08 mm of radius error. The ρ form has no such problem.
+
+### 10.5 The inner LP
+
+Given N, L, Ps and foot 0's stance window W = [φc − Δ/2, φc + Δ/2] (φc = 270° when symmetric):
+
+- **Variables:** a, b, c_j, plus a few auxiliaries that bound maxima and minima.
+- **Constraints**, sampled at about 120 angles in W and 60 directions in the band:
+  1. *Foot 0 is lowest during W, and handoffs are clean.* For k = 1…N−1: y₀(φ + kΔ) − y₀(φ) ≥ m × (distance from φ to the nearer end of W). m is the clean-handoff input.
+  2. *Ride height:* −y₀ on W stays within the user's range.
+  3. *Space:* every contact point at every pose lies inside the box. The bore and slot discs are fixed shapes, so they are checked once.
+  4. *Walls:* h ≥ bore radius + minimum wall across the band.
+  5. *Radius:* c_j ≥ ρ_min.
+  6. *Limits from the goals* (§10.6), e.g. stride ≥ 60 mm or bob ≤ 1 mm.
+- **Objective:** the goal score (§10.6).
+- **Tie-breaks** for parts no goal cares about are tiny (10⁻⁶ per mm):
+  - prefer smaller radii, so the foot curls up where it needn't be flat and stays compact;
+  - avoid bends in the radius profile (second differences of the c_j), so it has no wiggles.
+- **Wall headroom:** the discs carry 0.05 mm over the minimum wall, so validation never meets a wall exactly at the limit.
+- **Space box:** it is checked at 48 poses, on the contact curve's two ends plus the 3 mm end-arc margin (§10.8). The curve's x and y extremes are always at its ends, because all its normals point downward.
+- **Elastic limits:** limits, ride height and space can be violated at a cost of 100 per unit of normalised violation. An impossible request still returns its least-bad answer, and the outer search can steer by it. Lowest-foot, wall and curvature rules are hard.
+- **Ripple goals** need the mean speed in one term. The LP is solved once with an estimate, then again with the actual mean if it differs by more than 3 %.
+- **Solver:** HiGHS 1.15.3 (MIT licence; 3.5 MB of WebAssembly, 1.2 MB gzipped), through its array-based model API. It runs in a Web Worker and loads when Generate is first pressed. It sits behind a one-function interface (`LpSolver`), so it can be swapped. Typical size: about 750 rows and 45 columns, about 2 ms per solve.
+
+### 10.6 Goals and priorities
+
+Each metric can be set to one of three modes. The metrics are bob, stride, speed ripple, handoff kink, handoff slip, peak vertical acceleration, foot lift, swept size and ride height.
+
+- **Ignore.**
+- **Limit:** a hard requirement in the metric's own units, e.g. "stride ≥ 60 mm" or "bob ≤ 1 mm". Candidates that miss it are never shown. If nothing can meet the limits together, the generator says which ones conflict.
+- **Goal:** an *ideal* value, an *acceptable* value, and an importance of low, normal or high (weights 1, 2, 4).
+
+How goals are scored:
+- **Shortfall.** For goal i, s_i = (value − ideal) / (acceptable − ideal), clipped at 0. So 0 means ideal and 1 means just acceptable.
+- **Score.** Minimise max_i(w_i s_i) + 0.01 Σ w_i s_i, an augmented weighted Chebyshev score.
+- **What the max term does.** It always improves the worst-off goal first, so no goal is quietly sacrificed for another, and the importance sets how much slack each goal gets.
+- **What the sum term does.** It breaks ties. Both terms fit in an LP.
+- **Reading the result.** A design scoring ≤ 1 meets every goal's acceptable value.
+
+Why anchors instead of weight sliders: weights have no units, and their effect depends on each metric's scale, so moving a slider has unpredictable results. "Ideal 0.5 mm, acceptable 2 mm" says what the user means, in units they already think in.
+
+Ripple is a ratio, (max − min)/mean. Each LP fixes the stride, which makes ripple linear. The outer search then varies the stride target.
+
+Presets fill in sensible goals: Balanced, Smooth (bob, ripple, kink), Fast (stride) and Compact (swept size).
+
+### 10.7 Outer search
+
+As built:
+- **Grid size** depends on how many dimensions are free: 7, 5, 4 or 3 points per dimension for 1, 2, 3 or 4 of them. That is followed by two Nelder–Mead starts of 24 evaluations per feet count.
+- **Rounding:** chosen mechanisms are rounded to 0.1 mm and solved again, so designs come out in tidy numbers.
+- **What's shown:** the best design for each feet count, then the next best that differ, up to five in all.
+- **Speed:** the default brief (3–5 feet, an L range, free pin height) takes about 1.3 s, around 280 LPs.
+
+- **What it searches.** N (the allowed set), L, pin height, pin offset, and φc (the latter two for asymmetric designs only). Each point is one LP.
+- **How.** A coarse grid first, then Nelder–Mead from the best few points. Infeasible points report how far they are from feasible, which steers the search.
+- **Running it.** It runs in a worker, results stream in, and the user can stop early. A few seconds is typical.
+- **What it keeps.** The best design for each N, plus a few good designs that differ meaningfully, so the user sees real alternatives rather than near-duplicates.
+
+### 10.8 The rest of the outline
+
+Only the cycle band ever touches the ground. The rest of the outline is the convex hull of three shapes:
+- the contact curve;
+- the bore disc, of bore radius + wall about P1;
+- the slot's obround, grown by the wall.
+
+That gives tangent lines from the ends of the contact curve to an arc around the slot's top end, like the teardrop preset.
+
+As built, the contact curve doesn't stop abruptly at the band ends. It continues as an end arc of radius min(ρ_end, 3 mm), turning up to 180°, until a common tangent with a disc takes over. So the outline is tangent-continuous everywhere, and the end arcs lie outside the band, where they never touch the ground.
+- **It never touches the ground.** The hull is convex, so its normals outside the contact curve lie outside the cycle band.
+- **It is as compact as possible,** which keeps the swept area small.
+
+The result is converted to editable nodes:
+- the contact curve becomes smooth cubics, fitted to 0.05 mm. Each cubic is checked to be strictly convex, using the exact quadratic for B′ × B″, because a nearly flat cubic can hide an inflection that makes the contact jump. That gives 20–26 anchors in total;
+- the sides become lines and the top an arc;
+- Mirror is turned on for symmetric designs.
+
+A "fuller" option can come later, if hulls look too lean.
+
+### 10.9 Verification
+
+Each candidate goes through the normal analysis (§11) and the swept area (§4.6), which is checked against the box. The candidate list shows those numbers.
+
+The tests check:
+- the profile identities (h + h″ = ρ and q′ = ρ n′) against finite differences;
+- that on the default mechanism, the LP's bob, stride and ripple agree with the full analysis of the generated outline, with no design errors, contact jumps or corner contacts, and with the ride height in range;
+- that the swept area stays inside a tight space box;
+- that an impossible limit comes back as "infeasible" rather than failing;
+- that an end-to-end search returns verified, distinct candidates in 0.1 mm steps that meet the brief.
+
+### 10.10 Prototype findings
+
+Prototype: HiGHS from Node, with the profile of §10.4. Every solution was re-checked by brute force: the envelope over 7200 angles and the radius over 4000 directions. The checker first reproduced the §9 arc-foot values exactly. Mechanism: N = 3, L = 6, pin 40 mm above the shaft, ride height ≤ 60 mm, ρ_min = 5 mm, clean handoff 1 mm/rad, unless noted otherwise.
+
+- **Bob is nearly free.** At the arc foot's stride (67.25 mm/rev), the lowest bob is 0.02 mm, against 3.0 mm for the arc foot, and ripple even improves (47 % vs 50 %).
+- **Shape barely moves ripple.** Allowing more bob buys very little: 47 % at 0.5 mm, 44 % at 3.3 mm.
+- **Stride is capped by space and leverage.** The most this mechanism can do with bob ≤ 0.5 mm and ride height ≤ 60 mm is 70.8 mm/rev, and ride height is the binding limit.
+- **The mechanism sets ripple and the available stride.** Maximum stride with bob ≤ 0.5 mm and ride height ≤ 60 mm:
+
+| | L = 4 | L = 6 | L = 9 |
+|---|---|---|---|
+| N = 3, pin 40 | 48.7 mm, 51 % | 70.8 mm, 47 % | 101.3 mm, 42 % |
+| N = 4, pin 40 | 52.4 mm, 27 % | 75.7 mm, 25 % | 107.5 mm, 22 % |
+| N = 5, pin 40 | 54.1 mm, 17 % | 77.9 mm, 16 % | 110.4 mm, 14 % |
+| N = 4, pin 30 | 61.4 mm, 25 % | 87.8 mm, 22 % | 122.8 mm, 19 % |
+| N = 4, pin 55 | 44.7 mm, 29 % | 65.1 mm, 27 % | 93.8 mm, 25 % |
+
+**As built, the default brief** (space taken from the default design) returns, best first:
+- 5 feet, L = 8.1 mm, pin 34.5 mm: bob 0.02 mm, stride 102.4 mm/rev, ripple 13 %;
+- the best 4-foot design: bob 0.13 mm, 106.5 mm, 20 %;
+- the best 3-foot design: bob 0.62 mm, 96.7 mm, 37 %.
+
+The default arc foot gives bob 3.0 mm, 67.3 mm, 50 %.
+
+**Width.** Flat-stance feet are wide: zero bob on N = 3, L = 6, pin 40 needs a bottom radius around 500 mm. The space box is what keeps them in check.
+
+So the foot shape takes care of bob almost for free, and the mechanism (N, L, pin height) decides ripple and how much stride fits in the space. Cutting ripple further needs a different slot (§4.4), which is a natural later addition to the outer search. This is also what the UI should tell users, so they adjust the inputs that actually matter.
+
+### 10.11 Special case: flat stance in closed form ✔
 
 The support-function form can be inverted. Suppose we want a perfectly flat stance, y₀(φ) = −c on a window W slightly wider than Δ (the overlap gives soft touchdown). §5.1 then requires
 
@@ -408,7 +593,7 @@ $$h\bigl(\psi(\varphi)\bigr) = P_{1y}(\varphi) + c,\qquad \varphi\in W .$$
 
 Example (§9 parameters, c = 56, W = stance ± 10°): ψ spans 15.3° and the minimum radius of curvature is about 403 mm, a nearly flat bottom. The tool would fit this exactly-defined curve with Béziers to tolerance and blend it into the user's sides with C1/C2 continuity.
 
-This flattens bob but leaves speed ripple. Reducing ripple too needs a second design function: the slot shape (§4.4), which reshapes α(φ). That is a constrained problem, because the pin path must retrace itself, so it belongs with the future optimiser.
+This flattens bob but leaves speed ripple. Reducing ripple too needs a second design function: the slot shape (§4.4), which reshapes α(φ). That is a constrained problem, because the pin path must retrace itself. It fits the generator's outer search (§10.7) as extra variables.
 
 ---
 
@@ -513,6 +698,7 @@ Accuracy: every boundary point comes from the exact equations, and the splines a
 - **vitest**: tests for the math core.
 - **No charting library.** Plots are custom SVG components that render `Curve1D`/`Curve2D` as Bézier paths. Charting libraries generally take point arrays, which would break the continuous-data requirement.
 - **@tarikjabiri/dxf** for DXF writing (R2007/AC1021 output). It is loaded on demand when exporting.
+- **highs** (HiGHS 1.15.3, MIT): the generator's LP solver (§10.5), compiled to WebAssembly. It runs in a Web Worker and loads when Generate is first pressed.
 - Possible later additions: Comlink (worker), lz-string (shareable URLs).
 
 ### 12.2 Layering and folder layout
@@ -529,19 +715,25 @@ src/
     mechanism/         drive (eccentric), constraints/ (types, registry, centerlineSlot)
     analysis/          prepare (outline stage), foot (evaluator), events, footCurves, envelope, metrics,
                        swept (keep-out zone, §4.6), analyze (pipeline)
+    generate/          brief (inputs, goals, presets), profile (curvature B-spline), lp (builder, solver
+                       interface), highsSolver, inner (one LP per mechanism), closure (outline), search
     design/            schema, defaults, presets, hardware (derived sizes), validate,
                        outlineEdit (free edits, OutlineOps), mirror (symmetric editing), serialize
     export/            parts (sheet layout, cam variants), svg, dxf
     util/              lazy, memoizeLast
     test/              shared test helpers (seeded PRNG, random outlines, finite differences)
-  state/               designStore (undo/redo, gestures, autosave), uiStore (preferences, editor selection,
-                       notices, open dialog), playhead (shared φ + rAF loop), storage (safe localStorage), useAnalysis
+  state/               designStore (undo/redo, gestures, autosave), uiStore (mode, preferences, editor selection,
+                       notices, open dialog), generatorStore (brief, run, candidates, preview), playhead (shared φ
+                       + rAF loop), storage (safe localStorage), useAnalysis (design and preview analyses)
+  workers/             generate.worker (loads HiGHS, runs the search), generateProtocol (messages)
   ui/
     common/            Button, Icon, NumberField, SegmentedControl, Select, Checkbox, Menu, Dialog, Panel, Section
     plot/              Viewport (pan/zoom world view) + viewportContext, Legend, ticks, paths
     views/             types, registry, ViewArea, palette, path/PathView, height/HeightChart,
-                       editor/ (FootEditor, EditorCanvas, Inspector, Overlays, useOutlineOps, useWorldDrag),
+                       editor/ (FootEditor, FootPreview, EditorCanvas, Inspector, Overlays, editorBounds,
+                       useOutlineOps, useWorldDrag), candidates/CandidatesView,
                        shared/ (MechanismGlyphs, GroundRuler, Transport)
+    generate/          GeneratePanel (the brief), SpanField, GoalRow
     panels/            ParametersPanel (Mechanism, Hardware), MetricsPanel (Results, More results), IssuesPanel
     layout/            AppShell, Header, SaveDialog, fileActions
     hooks/             useElementSize, useShortcuts, keyboard (focus helpers)
@@ -664,7 +856,8 @@ interface ViewDefinition {
 ### 12.6 State and playhead
 
 - `designStore` (zustand) holds the design and its undo/redo history. A slider or drag gesture is merged into one undo entry. It autosaves to localStorage (debounced).
-- `uiStore` holds display preferences (units, show all feet, show swept area, snap, chart range; persisted), the editor selection, notices and the open dialog.
+- `uiStore` holds the app mode (Design or Generate), display preferences (units, show all feet, show swept area, snap, chart range; persisted), the editor selection, notices and the open dialog.
+- `generatorStore` holds the brief (persisted in the browser), the run status and progress, the candidates and the selected one. The search runs in `workers/generate.worker` and messages carry a request id, so a stopped or superseded run is ignored; Stop terminates the worker. `useAnalysis()` returns the selected candidate's analysis in Generate mode, through a separate memoised analyser, and the design's otherwise. `useDesignAnalysis()` always returns the design's.
 - The `playhead` (current φ, whole revolutions completed, playing, speed) is a separate tiny store driven by `requestAnimationFrame`. Counting revolutions keeps travel-based animation (the moving ground) continuous across the 360° → 0° wrap; scrubbing stays within the current revolution. Views subscribe through zustand selectors and only update the animated elements, so panels don't re-render 60 times a second. The playhead is shared, so the animation, the height-chart cursor and every future view stay in sync, and scrubbing any view moves all of them.
 - All localStorage access goes through `state/storage`, which never throws (private windows, blocked storage).
 
@@ -684,6 +877,7 @@ Automated (`npm test`, vitest):
 - **Travel:** X(0) = 0; X(φ + 2π) − X(φ) = ±S_rev and X(φ + Δ) − X(φ) = ±S_step; X′ matches the active foot's v by finite differences.
 - **Splines:** Hermite fits within tolerance; exact Bézier conversion.
 - **Design:** JSON round trip, readable errors for bad files, older files still open; presets valid with no stance contact jumps; outline edits (insert keeps the shape, delete, smooth handles, arc → cubic); cam sizing.
+- **Generator:** see §10.9.
 - **Swept area:** a circular foot gives a circle of radius R + L. The result matches a brute-force union of 2000 poses (plus each corner's path), ray by ray from P0, to under 0.001 mm for the default foot, every preset and random feet with an offset pin. A hooked foot is flagged as conservative and matches the brute-force radial hull. The cam's sweep is included where it pokes out. The boundary is closed and counter-clockwise.
 - **Mirror:** on by default in canonical form; symmetrising symmetric and random outlines, idempotence, refusing one-sided outlines; mirrored edits from either side; paired insert/delete; analysis unchanged; file round trip.
 - **Export:** part layout; SVG uses exact arc and cubic commands; DXF has splines, arcs and mm units.
@@ -705,7 +899,7 @@ Guiding rule: show only what matters while tuning, and keep the rest one click a
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ Title  Design name  File ▾  ↶ ↷                                   mm│in  │
+│ Title  Design name  File ▾  ↶ ↷  [Design│Generate]                mm│in  │
 ├───────────────┬──────────────────────────────┬───────────────────────────┤
 │ Mechanism     │ Foot path (animation)         │ Foot editor               │
 │ (N, L, pin)   │                               │                           │
@@ -752,7 +946,7 @@ The design's name sits next to the app title. The File menu holds New, Open, Sav
   - Every edit is mapped to the right half and the left half is rebuilt (`core/design/mirror.ts`), so editing either side works and the shape is always exactly symmetric.
   - The two axis anchors cannot move sideways or be deleted. When smooth, they keep horizontal handles.
   - The analysis and exports just see an ordinary outline.
-- **Header:** presets (kept symmetric when Mirror is on), Mirror, and snap to grid. Later: the inverse-design "flat stance" generator (§10) and SVG path import.
+- **Header:** presets (kept symmetric when Mirror is on), Mirror, and snap to grid. Later: SVG path import. Generating a whole design is the separate Generate mode (§13.6).
 
 ### 13.5 Sidebar
 
@@ -761,6 +955,42 @@ The design's name sits next to the app title. The File menu holds New, Open, Sav
 - **Results:** tiles for bob and stride per revolution (with stride per step), then handoff kink and speed ripple.
 - **More results (collapsed):** cam shaft speed (rpm), ground speed, touchdown speed, peak vertical acceleration, handoff slip, tilt range, foot lift, double support.
 - **Hardware (collapsed):** shaft type and size, pin diameter, clearance, minimum wall, and the automatic cam diameter (read-only).
+
+### 13.6 Generate mode ✔
+
+The generator (§10) is a mode of the main window, not a popup.
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│ Title  Design name  File ▾  ↶ ↷  [Design│Generate]                mm│in  │
+├───────────────┬──────────────────────────────┬───────────────────────────┤
+│ Layout        │ Foot path: candidate         │ Foot (read-only preview)  │
+│ Space         │ + space box + swept area     │                           │
+│ Goals         ├──────────────────────────────┴───────────────────────────┤
+│ ▸ Foot shape  │ [Candidates] Lowest point vs cam angle   [Use this design]│
+│ ▸ Hardware    │ Feet  L     Pin    Bob     Stride   Ripple  Fit          │
+│               │ 5     8.1   34.5   0.02    102.4    13 %    Ideal  ◀     │
+│ [Generate]    │ 4     8.6   29.1   0.13    106.5    20 %    Good         │
+└───────────────┴──────────────────────────────────────────────────────────┘
+```
+
+- **Entry and exit.** A Design | Generate switch in the header. Generate swaps the sidebar for the brief. *Use this design* applies the selected candidate (mechanism, outline, mirror flag; the design keeps its name) as one undoable step and returns to Design. Switching back to Design without applying leaves the design untouched.
+- **The brief.**
+  - *Order.* Layout, Space and Goals are open; Foot shape and Hardware are collapsed. Hardware is the design's own section, shared.
+  - *Inputs.* Each dimension is Fixed, Range or (where it makes sense) Free. Each goal is Off, Limit ("at most / at least") or Goal (ideal, acceptable, and Low/Normal/High importance), and only its own fields are shown. A Presets menu fills in the goals.
+  - *Running.* The Generate button sticks to the bottom of the sidebar and becomes a progress bar with Stop while searching. Reset rebuilds the brief from the current design.
+  - *Remembered:* the brief is kept in the browser; saving it in the design file is a later option.
+- **Preview in the real views.** The best candidate is selected as soon as it arrives, and selecting a candidate previews it in every view.
+  - *Foot path:* the swept area is always on, inside the dashed space box.
+  - *Foot editor:* replaced by a read-only Foot preview.
+  - *Bottom area:* the height chart stays available as a tab.
+  - *Why not a popup:* a popup would repeat these views at a smaller size, and closing it would lose the comparison.
+- **Candidates view.** The first tab in the bottom area, with Use this design in its header.
+  - *Columns:* feet, L and pin, then only the metrics the brief uses, then a plain verdict. The verdict is Ideal (every goal within 5 % of ideal), Good, Acceptable, or "Misses …" naming the goal, limit, space or ride height it fails.
+  - *Order:* best first, and the best design for each feet count is always included.
+  - *Interaction:* rows are clickable and keyboard-navigable (arrows, Enter).
+  - *Simpler than planned:* the scatter plot and goal bars were dropped for this compact table, in line with keeping the screen uncluttered. "Limited by" explanations remain a later step.
+- **Quick iteration.** The brief stays on screen, and a typical search takes 1–2 s, so changing a goal and pressing Generate again is cheap.
 
 ---
 
@@ -808,9 +1038,15 @@ Blocking errors stop the analysis, and the views show a message instead of resul
 3. ~~**Foot editor:** pen tool, overlays and bands, validation, undo/redo, autosave.~~ Done.
 4. ~~**Export/import:** JSON, SVG, DXF (with cam variants and frame holes).~~ Done.
 5. ~~**Polish:** simplified UI (secondary results and hardware collapsed), automatic cam size, mirror editing, named saves.~~ Done.
-6. **Next:** forward-motion view (X(φ), v(φ)), full-module animation with moving ground, offset/angled slot constraint.
-7. ~~**Swept area:** keep-out outline in the path view (§4.6, §11.10).~~ Done. Export as a reference layer is a natural follow-up.
-8. **Later:** curved slots, inverse design, design comparison, optimiser (weighted bob/stride/smoothness), loads.
+6. ~~**Swept area:** keep-out outline in the path view (§4.6, §11.10).~~ Done. Export as a reference layer is a natural follow-up.
+7. **Next:** forward-motion view (X(φ), v(φ)), full-module animation with moving ground, offset/angled slot constraint.
+8. ~~**Generator (§10, §13.6):** core (profile, LP, closure, verification), search in a worker, Generate mode UI.~~ Done.
+   *Later:*
+   - "limited by" explanations from the LP's dual values;
+   - offset and curved slots as outer variables, to reduce ripple;
+   - goals in time units (RPM), plus acceleration and swept-size goals;
+   - saving the brief with the design file.
+9. **Later:** curved slots, design comparison, loads.
 
 ## 17. Decisions and open questions
 
@@ -824,6 +1060,7 @@ Decided (2026-10-20):
 - **Cam size:** derived, not an input. The cam radius is L + shaft hole + minimum wall, so the minimum wall doubles as the cam's margin around the shaft.
 - **Mirror:** optional, on by default for new designs, and saved with the design. Files without the flag open unmirrored so their geometry never changes. Turning it on keeps the right half; mirrored outlines use the canonical form in §13.4.
 - **Saving:** Save… asks for a name, which is stored in the design and used for every file name.
+- **Generator (§10):** a Design | Generate mode switch in the main window (not a popup); goals as Off / Limit / Goal with ideal, acceptable and importance; HiGHS in a worker, loaded on demand; space described as a box around the shaft; convex contact profiles only (confirmed by the user, 2026-10-20).
 - **Swept area:** exact outer boundary of the foot's sweep (plus the cam's), computed from the envelope condition rather than by sampling poses. If a foot isn't star-shaped about P0, the line falls back to the radial hull, which is never smaller than the true area.
 
 Still open:

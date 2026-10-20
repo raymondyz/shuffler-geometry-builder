@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@tarikjabiri/dxf": "^2.9.0",
+    "highs": "1.15.3",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "zustand": "^5.0.15"

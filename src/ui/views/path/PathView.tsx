@@ -5,6 +5,8 @@ import type { ShaftSpec } from '../../../core/design/schema'
 import { TAU } from '../../../core/math/angle'
 import { length } from '../../../core/math/vec2'
 import { usePlayhead } from '../../../state/playhead'
+import type { Brief } from '../../../core/generate/brief'
+import { useGeneratorStore } from '../../../state/generatorStore'
 import { useUiStore } from '../../../state/uiStore'
 import { Checkbox } from '../../common/Checkbox'
 import { EmptyState } from '../../common/Panel'
@@ -20,15 +22,20 @@ import styles from '../shared/mechanism.module.css'
 import { Transport } from '../shared/Transport'
 import type { ViewProps } from '../types'
 
-function pathBounds(analysis: Analysis): Bounds {
+function pathBounds(analysis: Analysis, space: Brief['space'] | null): Bounds {
   const { outline, design, mechanism } = analysis
   const reach = Math.max(Math.max(...(outline?.polyline() ?? [{ x: 50, y: 50 }]).map(length)), camRadius(design)) + design.drive.L
   const pin = mechanism.constraint.pin
   const pinR = design.hardware.pinDiameter / 2
   return {
-    min: { x: Math.min(-reach, pin.x - pinR), y: -reach },
-    max: { x: Math.max(reach, pin.x + pinR), y: Math.max(reach, pin.y + pinR) },
+    min: { x: Math.min(-reach, pin.x - pinR, space ? -space.front : Infinity), y: -reach },
+    max: { x: Math.max(reach, pin.x + pinR, space ? space.behind : -Infinity), y: Math.max(reach, pin.y + pinR, space ? space.above : -Infinity) },
   }
+}
+
+/** The room the brief allows (Generate mode): sides and top of a box around the shaft, down to the floor. */
+function SpaceBox({ space, groundY }: { space: Brief['space']; groundY: number }) {
+  return <path d={`M ${-space.front} ${groundY} V ${space.above} H ${space.behind} V ${groundY}`} className={styles.spaceBox} />
 }
 
 /** Everything the foot and cam sweep over a revolution (SPEC §4.6): the keep-out zone, drawn behind everything. */
@@ -122,20 +129,30 @@ const LEGEND: LegendEntry[] = [
   { label: 'Stance', color: footColor(0), width: 3 },
 ]
 
+/** In Generate mode the swept area is always shown, next to the space it must fit */
+const GENERATE_LEGEND: LegendEntry[] = [
+  { label: 'Space', color: 'var(--text-secondary)', kind: 'dashed' },
+  { label: 'Swept area', color: 'var(--text-muted)', kind: 'area' },
+  ...LEGEND,
+]
+
 /** Header legend and the display toggles. The swept-area toggle doubles as its legend entry. */
 export function PathViewActions() {
   const showAllFeet = useUiStore((s) => s.showAllFeet)
   const showSwept = useUiStore((s) => s.showSwept)
+  const generating = useUiStore((s) => s.mode === 'generate')
   const setPreference = useUiStore((s) => s.setPreference)
   return (
     <>
-      <Legend entries={LEGEND} />
-      <Checkbox
-        label={<><Swatch color="var(--text-muted)" kind="area" />Swept area</>}
-        title="Everything the foot and cam occupy over a revolution: keep other parts out of it"
-        checked={showSwept}
-        onChange={(v) => setPreference('showSwept', v)}
-      />
+      <Legend entries={generating ? GENERATE_LEGEND : LEGEND} />
+      {!generating && (
+        <Checkbox
+          label={<><Swatch color="var(--text-muted)" kind="area" />Swept area</>}
+          title="Everything the foot and cam occupy over a revolution: keep other parts out of it"
+          checked={showSwept}
+          onChange={(v) => setPreference('showSwept', v)}
+        />
+      )}
       <Checkbox label="Show all feet" checked={showAllFeet} onChange={(v) => setPreference('showAllFeet', v)} />
     </>
   )
@@ -143,9 +160,11 @@ export function PathViewActions() {
 
 export function PathView({ analysis }: ViewProps) {
   const showAllFeet = useUiStore((s) => s.showAllFeet)
-  const showSwept = useUiStore((s) => s.showSwept)
+  const generating = useUiStore((s) => s.mode === 'generate')
+  const space = useGeneratorStore((s) => (generating ? s.brief?.space ?? null : null))
+  const showSwept = useUiStore((s) => s.showSwept) || generating
   const { outline, mechanism, kinematics, design } = analysis
-  const bounds = useMemo(() => pathBounds(analysis), [analysis])
+  const bounds = useMemo(() => pathBounds(analysis, space), [analysis, space])
   const slotPath = useMemo(
     () => segmentsPath(mechanism.constraint.slotOutline(slotRadius(design.hardware)), true),
     [mechanism, design.hardware],
@@ -160,6 +179,7 @@ export function PathView({ analysis }: ViewProps) {
         overlay={<PathOverlay analysis={analysis} showSwept={showSwept} />}
       >
         {showSwept && <SweptLayer analysis={analysis} />}
+        {space && <SpaceBox space={space} groundY={kinematics?.envelope.minY ?? -Math.max(space.above, 60)} />}
         <OrbitLayer L={design.drive.L} />
         {!kinematics && (
           <FootGlyph

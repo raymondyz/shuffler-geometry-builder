@@ -4,8 +4,11 @@ import { useUnits } from '../../state/uiStore'
 import { formatNumber, fromDisplay, lengthDecimals, lengthStep, toDisplay, type Units } from '../format'
 import styles from './controls.module.css'
 
-/** What a value measures: lengths follow the mm/in toggle, angles show degrees, plain values are shown as-is. */
-export type Quantity = 'length' | 'angle' | 'plain'
+/**
+ * What a value measures: lengths (and lengths per radian) follow the mm/in toggle, angles show
+ * degrees, fractions show as percent, plain values are shown as-is.
+ */
+export type Quantity = 'length' | 'perRad' | 'angle' | 'percent' | 'plain'
 
 export interface NumberFieldProps {
   label: string
@@ -49,7 +52,17 @@ function converterFor(quantity: Quantity, units: Units, integer: boolean, suffix
       suffix: units,
     }
   }
+  if (quantity === 'perRad') {
+    return {
+      toShown: (v) => toDisplay(v, units),
+      fromShown: (v) => fromDisplay(v, units),
+      decimals: lengthDecimals(units),
+      step: toDisplay(lengthStep(units), units),
+      suffix: `${units}/rad`,
+    }
+  }
   if (quantity === 'angle') return { toShown: radToDeg, fromShown: degToRad, decimals: 1, step: 0.5, suffix: '°' }
+  if (quantity === 'percent') return { toShown: (v) => v * 100, fromShown: (v) => v / 100, decimals: 0, step: 1, suffix: '%' }
   return { toShown: (v) => v, fromShown: (v) => v, decimals: integer ? 0 : 2, step: 1, suffix }
 }
 

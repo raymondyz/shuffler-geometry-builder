@@ -25,7 +25,12 @@ interface Preferences {
 
 export type DialogId = 'save'
 
+/** Design: edit the current design. Generate: describe constraints and pick a generated design (SPEC §13.6). */
+export type AppMode = 'design' | 'generate'
+
 interface UiState extends Preferences {
+  mode: AppMode
+  setMode(mode: AppMode): void
   selection: EditorSelection
   notice: Notice | null
   dialog: DialogId | null
@@ -62,6 +67,10 @@ let noticeTimer: ReturnType<typeof setTimeout> | undefined
 
 export const useUiStore = create<UiState>()((set, get) => ({
   ...loadPreferences(),
+  mode: 'design',
+  setMode(mode) {
+    set({ mode, selection: null })
+  },
   selection: null,
   notice: null,
   dialog: null,
