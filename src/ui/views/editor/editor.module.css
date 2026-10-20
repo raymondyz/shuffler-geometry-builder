@@ -1,0 +1,115 @@
+.polarGrid circle,
+.polarGrid line {
+  fill: none;
+  stroke: var(--grid);
+  stroke-width: 1;
+}
+
+.mirrorLine {
+  stroke: var(--accent);
+  stroke-width: 1;
+  stroke-dasharray: 6 4;
+  opacity: 0.7;
+}
+
+.outline {
+  fill: var(--foot-fill);
+  stroke: var(--text-primary);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.cutout {
+  fill: var(--surface-1);
+  stroke: var(--text-secondary);
+  stroke-width: 1;
+}
+
+.contactBand {
+  fill: none;
+  stroke: var(--series-1);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+}
+
+.edgeHit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14;
+  cursor: pointer;
+}
+
+.edgeSelected {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  pointer-events: none;
+}
+
+.handleLine {
+  stroke: var(--accent);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+.handle {
+  fill: var(--surface-1);
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+
+.node {
+  fill: var(--surface-1);
+  stroke: var(--text-primary);
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+
+.nodeSelected {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+
+.hit {
+  fill: transparent;
+  cursor: move;
+}
+
+.inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+}
+
+.inspectorHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.inspectorFields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  align-items: end;
+  gap: 8px;
+}
+
+.grow {
+  flex: 1;
+}
+
+.inspectorTitle {
+  color: var(--text-primary);
+  font-size: var(--font-sm);
+  font-weight: 600;
+}
+
+.hint,
+.readout {
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+}

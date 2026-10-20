@@ -1,0 +1,144 @@
+.shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100dvh;
+  background: var(--surface-page);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-1);
+}
+
+.title {
+  margin: 0 8px 0 0;
+  color: var(--text-primary);
+  font-size: var(--font-md);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.designName {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerGroup {
+  display: flex;
+  gap: 4px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.notice {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 4px 4px 4px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+  box-shadow: var(--shadow);
+  color: var(--text-primary);
+  font-size: var(--font-sm);
+  transform: translateX(-50%);
+}
+
+.noticeError > svg {
+  flex: none;
+  color: var(--status-critical);
+}
+
+.body {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  min-height: 0;
+}
+
+.sidebar {
+  min-height: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--surface-1);
+}
+
+.main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(320px, 1.3fr) minmax(220px, 1fr);
+  grid-template-areas:
+    'primary secondary'
+    'bottom bottom';
+  gap: 8px;
+  min-height: 0;
+  padding: 8px;
+  overflow: auto;
+}
+
+.primary {
+  grid-area: primary;
+}
+
+.secondary {
+  grid-area: secondary;
+}
+
+.bottom {
+  grid-area: bottom;
+}
+
+@media (max-width: 1200px) {
+  .body {
+    grid-template-columns: 268px minmax(0, 1fr);
+  }
+}
+
+/* Tablet portrait and narrow windows: stack everything and scroll the page */
+@media (max-width: 960px) {
+  .shell {
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidebar {
+    columns: 2 280px;
+    column-gap: 0;
+    overflow: visible;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar > * {
+    break-inside: avoid;
+  }
+
+  .main {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 480px 500px 340px;
+    grid-template-areas:
+      'primary'
+      'secondary'
+      'bottom';
+    overflow: visible;
+  }
+}

@@ -4,5 +4,25 @@
   "rules": {
     "react/rules-of-hooks": "error",
     "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["src/core/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              { "name": "react", "message": "src/core is pure TypeScript: no React." },
+              { "name": "react-dom", "message": "src/core is pure TypeScript: no React." },
+              { "name": "zustand", "message": "src/core must not depend on app state." }
+            ],
+            "patterns": [
+              { "group": ["**/ui/**", "**/state/**"], "message": "src/core must not import UI or app state." }
+            ]
+          }
+        ]
+      }
+    }
+  ]
 }

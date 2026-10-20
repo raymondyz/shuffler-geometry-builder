@@ -1,0 +1,104 @@
+.note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rowLabel {
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+}
+
+.rowValue {
+  color: var(--text-primary);
+  font-size: var(--font-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-page);
+}
+
+.tileLabel {
+  color: var(--text-secondary);
+  font-size: var(--font-xs);
+}
+
+.tileValue {
+  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.tileDetail {
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+}
+
+.metric {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 8px;
+  align-items: baseline;
+  padding: 2px 0;
+}
+
+.metricLabel {
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+}
+
+.metricValue {
+  color: var(--text-primary);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.issues {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.issues li {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: var(--font-sm);
+  line-height: 1.35;
+}
+
+.error svg {
+  color: var(--status-critical);
+}
+
+.warning svg {
+  color: var(--status-warning-ink);
+}
