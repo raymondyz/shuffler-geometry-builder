@@ -46,8 +46,8 @@ interface ViewportProps {
   children: ReactNode
   /** HTML drawn over the canvas (legends, readouts) */
   overlay?: ReactNode
-  /** Click on empty canvas (not a drag) */
-  onBackgroundClick?(): void
+  /** Click on empty canvas (not a drag), with its world position and the world size of one screen pixel */
+  onBackgroundClick?(at: Vec2, px: number): void
   ariaLabel: string
 }
 
@@ -134,7 +134,10 @@ export function Viewport({ bounds, children, overlay, onBackgroundClick, ariaLab
     const g = gesture.current
     pointers.current.delete(e.pointerId)
     if (pointers.current.size === 0) {
-      if (g && !g.moved) onBackgroundClick?.()
+      if (g && !g.moved && view) {
+        const p = localPoint(svg, e.clientX, e.clientY)
+        onBackgroundClick?.({ x: (p.x - view.tx) / view.scale, y: -(p.y - view.ty) / view.scale }, 1 / view.scale)
+      }
       gesture.current = null
     } else if (view) {
       gesture.current = { start: view, points: new Map(pointers.current), moved: true }

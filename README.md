@@ -9,7 +9,7 @@ The math, design decisions and architecture are in [docs/SPEC.md](docs/SPEC.md).
 ```bash
 npm install
 npm run dev        # start the app at http://localhost:5173
-npm test           # core tests: math, design, mirror, export (vitest)
+npm test           # core tests: math, design, mirror, export, import (vitest)
 npm run typecheck  # TypeScript only
 npm run lint       # oxlint (also keeps src/core free of React and app state)
 npm run build      # type-check and build to dist/
@@ -39,6 +39,12 @@ npm run build      # type-check and build to dist/
   - The ground-contact profile is solved exactly (a linear program per mechanism). The rest of the foot is a compact convex shell around the bore and slot. See SPEC §10.
 - **Canvases** zoom with the wheel or a pinch and pan with a drag.
 - **File menu**: New, Open, **Save…** (⌘/Ctrl+S, asks for a name) a `.shuffler.json` design, or export the foot, cam variants and frame holes as **SVG** or **DXF** (exact lines, arcs and cubic splines, in mm, named after the design). The design also autosaves in the browser.
+- **Import foot (DXF)…** (File menu): bring in a foot drawn in CAD. See SPEC §14.2.
+  - The bore and slot in the drawing place it in the foot frame. If the slot implies a different L or pin distance, the design adopts them, or you can keep yours.
+  - Units come from the file, or are guessed.
+  - Curves exported as many short lines are smoothed.
+  - A preview shows the result first. Anything the tool had to guess or leave out is listed in the notes.
+  - Import is one undo step.
 - **Units**: everything is millimetres internally. The mm/in toggle changes only display and input.
 - **Shortcuts**: Space play/pause, ⌘/Ctrl+Z undo, ⌘/Ctrl+Shift+Z (or Ctrl+Y) redo, ⌘/Ctrl+S save, Delete removes the selected anchor, Escape clears the selection.
 
@@ -59,6 +65,8 @@ src/
     design/       schema, defaults, presets, derived hardware sizes, validation,
                   outline edits, mirroring, (de)serialisation
     export/       part layout, SVG and DXF writers
+    import/       DXF foot import: reader, entities and splines, loops, bore/slot detection, placement,
+                  smoothing, outline building
     test/         shared test helpers
   state/          zustand stores: design (undo/redo, autosave), UI (mode, preferences, selection,
                   notices, dialog), generator (brief, candidates), playhead; useAnalysis
@@ -70,7 +78,7 @@ src/
                   (+ shared mechanism glyphs, ground ruler, play bar)
     generate/     the Generate-mode sidebar: brief sections, span fields, goal rows
     panels/       sidebar sections: Mechanism, Hardware, Results, More results, Issues
-    layout/       AppShell, Header, SaveDialog, file actions
+    layout/       AppShell, Header, SaveDialog, ImportDialog, file actions
     hooks/        element size, keyboard shortcuts
 ```
 

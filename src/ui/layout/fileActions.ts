@@ -56,6 +56,25 @@ export function openDesign() {
   input.click()
 }
 
+/** Pick a DXF and open the import dialog for it (SPEC §14.2). The importer is loaded on demand. */
+export function importFootDxf() {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.dxf,image/vnd.dxf,application/dxf'
+  input.onchange = async () => {
+    const file = input.files?.[0]
+    if (!file) return
+    let importer: typeof import('../../core/import/importFoot') | null = null
+    try {
+      importer = await import('../../core/import/importFoot')
+      useUiStore.getState().openImport(importer.parseDxfFile(new Uint8Array(await file.arrayBuffer()), file.name))
+    } catch (e) {
+      notify('error', importer && e instanceof importer.ImportError ? e.message : `Could not read ${file.name}.`)
+    }
+  }
+  input.click()
+}
+
 /** Rename the design (if the name changed) and download it as <name>.shuffler.json. */
 export function saveDesign(name: string) {
   const trimmed = name.trim() || DEFAULT_NAME

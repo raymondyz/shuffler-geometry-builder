@@ -9,17 +9,19 @@ interface DialogProps {
   onSubmit(): void
   /** Called on Cancel, Escape or after submit */
   onClose(): void
+  /** Extra class for the dialog box (e.g. a wider size) */
+  className?: string
 }
 
 /** Modal dialog built on the native <dialog> element. Mount it to open it. */
-export function Dialog({ title, children, actions, onSubmit, onClose }: DialogProps) {
+export function Dialog({ title, children, actions, onSubmit, onClose, className }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null)
   useEffect(() => {
     const dialog = ref.current
     if (dialog && !dialog.open) dialog.showModal()
   }, [])
   return (
-    <dialog ref={ref} className={styles.dialog} onClose={onClose} aria-label={title}>
+    <dialog ref={ref} className={[styles.dialog, className].filter(Boolean).join(' ')} onClose={onClose} aria-label={title}>
       <form
         className={styles.dialogForm}
         onSubmit={(e) => {

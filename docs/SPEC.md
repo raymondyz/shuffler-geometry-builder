@@ -1,6 +1,6 @@
 # Shuffler Geometry Builder: Spec, Math & Architecture
 
-Status: v1 implemented (see the README for running and extending). Last updated 2026-10-20.
+Status: v1 implemented, plus DXF foot import (§14.2–14.12). See the README for running and extending. Last updated 2026-10-24.
 
 This document is the source of truth for what the tool does, the math it runs on, and how the code is organised. Sections 4–10 are the math; every formula marked ✔ was checked numerically (brute force and finite differences) before this was written. Section 9 gives a worked example whose numbers double as regression test values.
 
@@ -61,7 +61,7 @@ For now the user tunes parameters and every view updates live. Automatic optimis
 - **Height chart:** y of the lowest point of every foot vs cam angle φ, overlaid; the lower envelope is the robot's bob; crossings are handoffs.
 - **Results:** bob, stride and the main smoothness parts always visible, the rest one click away (§8, §13.5), all live.
 - **Foot editor:** intuitive spline editing of the full outline (pen-tool style Bézier editing, arcs, presets, numeric entry in Cartesian or polar about P1).
-- **Export/import:** CAD-ready geometry (DXF, SVG) and a native design file (JSON) that round-trips, saved under a user-chosen name.
+- **Export/import:** CAD-ready geometry (DXF, SVG) and a native design file (JSON) that round-trips, saved under a user-chosen name. Foot outlines can be imported from DXF (§14.2).
 - **Future views** (must be easy to add): forward displacement/speed vs φ, full-module animation (all feet + moving ground), pin/slot loads, design comparison, generator (§10, §13.6). (The swept area is done, §4.6.)
 
 ### 2.2 Non-functional
@@ -720,6 +720,8 @@ src/
     design/            schema, defaults, presets, hardware (derived sizes), validate,
                        outlineEdit (free edits, OutlineOps), mirror (symmetric editing), serialize
     export/            parts (sheet layout, cam variants), svg, dxf
+    import/            DXF foot import (§14.12): dxf/ (reader, entities, nurbs), segments, loops, features,
+                       place, simplify, toOutline, units, importFoot
     util/              lazy, memoizeLast
     test/              shared test helpers (seeded PRNG, random outlines, finite differences)
   state/               designStore (undo/redo, gestures, autosave), uiStore (mode, preferences, editor selection,
@@ -735,7 +737,7 @@ src/
                        shared/ (MechanismGlyphs, GroundRuler, Transport)
     generate/          GeneratePanel (the brief), SpanField, GoalRow
     panels/            ParametersPanel (Mechanism, Hardware), MetricsPanel (Results, More results), IssuesPanel
-    layout/            AppShell, Header, SaveDialog, fileActions
+    layout/            AppShell, Header, SaveDialog, ImportDialog (loaded on demand), fileActions
     hooks/             useElementSize, useShortcuts, keyboard (focus helpers)
     format.ts          unit conversion and number formatting (mm internally, mm/in on screen)
   App.tsx, main.tsx, index.css (design tokens, light and dark)
@@ -881,6 +883,7 @@ Automated (`npm test`, vitest):
 - **Swept area:** a circular foot gives a circle of radius R + L. The result matches a brute-force union of 2000 poses (plus each corner's path), ray by ray from P0, to under 0.001 mm for the default foot, every preset and random feet with an offset pin. A hooked foot is flagged as conservative and matches the brute-force radial hull. The cam's sweep is included where it pokes out. The boundary is closed and counter-clockwise.
 - **Mirror:** on by default in canonical form; symmetrising symmetric and random outlines, idempotence, refusing one-sided outlines; mirrored edits from either side; paired insert/delete; analysis unchanged; file round trip.
 - **Export:** part layout; SVG uses exact arc and cubic commands; DXF has splines, arcs and mm units.
+- **Import:** the sample SolidWorks feet, round trips through the export, the reader, entities, splines, loops, placement, units and smoothing (§14.12).
 
 Checked by hand during development, not automated yet:
 
@@ -911,7 +914,7 @@ Guiding rule: show only what matters while tuning, and keep the rest one click a
 └───────────────┴──────────────────────────────────────────────────────────┘
 ```
 
-The design's name sits next to the app title. The File menu holds New, Open, Save…, Export SVG and Export DXF. Save… (or ⌘/Ctrl+S) asks for a name. The name is stored in the design, shown next to the app title, and used for file names: `<name>.shuffler.json`, `<name>-parts.svg/.dxf`. Each view's legend and controls sit in its panel header. Canvases zoom with the wheel or a pinch, pan with a drag, and have one Fit button.
+The design's name sits next to the app title. The File menu holds New, Open, Import foot (DXF)… (§14.2), Save…, Export SVG and Export DXF. Save… (or ⌘/Ctrl+S) asks for a name. The name is stored in the design, shown next to the app title, and used for file names: `<name>.shuffler.json`, `<name>-parts.svg/.dxf`. Each view's legend and controls sit in its panel header. Canvases zoom with the wheel or a pinch, pan with a drag, and have one Fit button.
 
 **Shortcuts:** Space plays or pauses; ⌘/Ctrl+Z undoes and ⌘/Ctrl+Shift+Z or Ctrl+Y redoes; ⌘/Ctrl+S opens Save…; in the editor, Delete removes the selected anchor and Escape clears the selection. Apart from ⌘/Ctrl+S, shortcuts are ignored while typing in a text field.
 
@@ -996,6 +999,8 @@ The generator (§10) is a mode of the main window, not a popup.
 
 ## 14. Export and import
 
+### 14.1 Export
+
 | Format | Contents | Notes |
 |---|---|---|
 | **DXF (R2007 / AC1021)** | Foot (outline, bearing hole, slot), cam variants (disc + shaft bore), frame holes (P0 shaft clearance, Ps pin), foot 1's lowest-point path for reference, part labels | Layers FOOT, CAM, FRAME, REFERENCE and LABELS. Lines → LINE, arcs → ARC/CIRCLE, each cubic Bézier → its own degree-3 SPLINE with knots [0,0,0,0,1,1,1,1] (exact). |
@@ -1006,7 +1011,246 @@ The generator (§10) is a mode of the main window, not a popup.
 
 Files are named after the design: `<name>.shuffler.json`, `<name>-parts.svg`, `<name>-parts.dxf`. Browsers save downloads to their usual location.
 
-Future: STEP via OpenCascade (heavy, deferred), CAD parameter tables (Fusion/Onshape variables), outline import from SVG/DXF.
+Future: STEP via OpenCascade (heavy, deferred), CAD parameter tables (Fusion/Onshape variables), outline import from SVG (the DXF import pipeline below takes plain segments after reading the file, so an SVG reader plugs in there).
+
+### 14.2 DXF import: overview ✔
+
+Status: built (`core/import`, File ▸ Import foot (DXF)…). Values marked *tune* are starting points, checked so far against the two SolidWorks sample feet in `docs/` (§14.12).
+
+File ▸ **Import foot (DXF)…** reads a foot drawn in CAD and replaces the design's foot outline. A DXF is a drawing, not a design file: it says nothing about the feet count, the shaft or the RPM. The full round trip stays Save/Open (`.shuffler.json`).
+
+Principles:
+- **Only the outline is imported as geometry.** The bore and slot are generated from L, the pin and the hardware (§12.3). The file's bore and slot are used to *place* the foot and to *cross-check* the mechanism, never copied.
+- **Exact where possible.** Lines, arcs, circles, bulge polylines and non-rational splines of degree ≤ 3 convert exactly to the outline's segments (§11.2). Anything else is fitted to 0.001 mm, and the import says so.
+- **Never guess silently.** Every import goes through a preview dialog (§14.10). Where the tool had to guess (units, which shape is the foot, orientation), the guess is shown next to the control that changes it. A clean file needs one click.
+- **One undo step.** Import replaces the outline and the mirror flag (and L and the pin, if chosen, §14.8). It keeps the design's name, clears the editor selection, and returns to Design mode if Generate was open.
+
+Stages (pure core code; when an option changes, the dialog re-runs stages 3–7 without re-reading the file):
+
+1. **Read:** text → entities (§14.3).
+2. **Interpret:** entities → flat segments in mm (§14.3, §14.4).
+3. **Chain:** segments → closed loops (§14.5).
+4. **Pick:** which loop is the foot, and which holes are the bore and slot (§14.6).
+5. **Place:** rigid transform into the foot frame (§14.7).
+6. **Reconcile:** compare the file's slot and bore with the design (§14.8).
+7. **Build:** segments → editable outline, with clean-up, smoothing and mirror detection (§14.9).
+
+### 14.3 Reading the file
+
+**Parser.** A small reader of our own in `core/import/dxf`, not a dependency. ASCII DXF is a flat list of (group code, value) line pairs, so the reader is short. The real work (coordinate systems, splines, blocks) would be ours with any parser. It stays pure TypeScript, tested, and loaded on demand like the DXF writer.
+
+| File | Handling |
+|---|---|
+| ASCII DXF, R12 to R2018 | Supported. Sections used: HEADER ($INSUNITS), TABLES (layers), BLOCKS, ENTITIES. |
+| Binary DXF (starts `AutoCAD Binary DXF`) | Error: "This is a binary DXF. Export it as ASCII DXF." |
+| DWG (starts `AC10`) | Error: "This is a DWG file. Export it as DXF." |
+| Anything else, empty, or no ENTITIES section | Error: "This isn't a DXF file." |
+| Truncated (no EOF) | Uses what was read if the entity list is intact; otherwise an error with the line number. |
+| CRLF or LF line ends, padded group codes | Trimmed. |
+| Text encoding | UTF-8 (R2007+), falling back to Windows-1252 for older files. Only layer and block names are text. |
+| Over 20 MB or 200 000 entities (*tune*) | Error: "This looks like a whole drawing. Export just the foot." |
+| Non-finite numbers | That entity is dropped and counted. |
+
+**Entities.**
+
+| Entity | Becomes | Notes |
+|---|---|---|
+| LINE | line | |
+| ARC | arc | Degrees, counter-clockwise in the entity's own coordinate system (OCS, below). Angles may be negative or over 360°, so the sweep is (end − start) mod 360°. |
+| CIRCLE | two half arcs | An outline needs at least two anchors. A round foot is a valid outline (constant r). |
+| LWPOLYLINE | lines and arcs | Bulge (code 42) is tan(sweep/4), the same convention as the outline's arc edges, so it maps directly. The closed flag (code 70, bit 1) or a repeated first vertex closes it. Widths are ignored. |
+| POLYLINE + VERTEX (R12) | lines and arcs | 2D only. Curve-fit and spline-fit polylines use their fitted vertices and skip spline frame points (vertex flag 16). The result is usually faceted (§14.9). 3D polylines and meshes are ignored. |
+| SPLINE | cubics, lines or arcs | See below. |
+| ELLIPSE | an arc if the ratio is 1, otherwise cubics | An ellipse is an affine image of a circle, and Béziers are affine-invariant, so the circle approximation is applied in parameter space with pieces short enough to stay within 0.001 mm. |
+| INSERT | its block's entities, transformed | Insertion point, block base point, x/y scale (negative = mirrored), rotation, row/column arrays and nested blocks. Depth limit 16, with cycle detection. A non-uniform scale turns arcs into elliptical arcs. Entities on layer 0 inside a block take the INSERT's layer. A missing block is skipped and noted. |
+| TEXT, MTEXT, DIMENSION, LEADER, HATCH, POINT, SOLID, IMAGE, VIEWPORT | ignored | Counted by type in the dialog's notes. Dimension blocks (`*D…`) are never expanded. |
+| REGION, 3DSOLID, BODY | ignored | Their geometry is encrypted ACIS data. If that is all there is: "The drawing stores the shape as a solid. Export a sketch or flat profile instead." |
+
+**Splines.** The reader takes the degree, knots, control points, weights, fit points, end tangents and flags (closed, periodic, rational).
+- *Non-rational, degree ≤ 3: exact.* Knot insertion (Boehm) up to full multiplicity splits the spline into Bézier pieces. Degree 1 pieces become lines; degree 2 pieces are degree-elevated to cubics. Our own export writes each cubic as its own spline with knots [0,0,0,0,1,1,1,1], so it comes back unchanged.
+- *Rational, degree 2.* CAD often writes circles and arcs this way. A piece with equal legs and a normalised middle weight of cos(half the sweep) is a circular arc and becomes an exact arc.
+- *Everything else* (other rational pieces, degree > 3): fitted with the adaptive cubic Hermite fit (§11.6) from exact NURBS points and derivatives (de Boor) to 0.001 mm, split wherever a knot's multiplicity allows a corner. Noted as approximated.
+- *Fit points only* (no control points): a cubic spline through the points, with chord-length parameters and the file's end tangents if present. CAD programs don't agree on this curve between the points, so it is noted as approximated.
+- Periodic (unclamped) knot vectors are evaluated over their valid range. An invalid knot vector (wrong count, decreasing) drops the entity, with a note. If all weights are equal, the spline is treated as non-rational whatever the flag says.
+
+**Coordinate systems.** ARC, CIRCLE, LWPOLYLINE, 2D POLYLINE and INSERT are stored in an object coordinate system (OCS) set by their extrusion vector (codes 210/220/230) through DXF's arbitrary-axis rule. ELLIPSE and SPLINE are in world coordinates, but an ellipse's angles still run around its extrusion vector.
+- Extrusion (0, 0, −1) is common (mirrored sketch geometry). It negates x: arcs run clockwise in world coordinates and bulge signs flip. Getting this wrong draws arcs on the wrong side, so it gets its own tests.
+- An extrusion tilted out of the XY plane means the entity isn't flat in XY. It is skipped, with a note.
+
+**Z.** Coordinates are projected onto XY. If the chosen outline's entities sit at different heights, a note says "The outline isn't flat; it was projected onto XY."
+
+**Spaces and layers.**
+- Model space only. Entities with code 67 = 1 are in paper space (title blocks, sheet borders). If model space has no usable geometry but paper space does, paper space is used, with a note.
+- Entities on layers that are off or frozen are skipped by default, since they are usually construction geometry. The notes list them, with a toggle to include them.
+- A layer named FOOT (any case) is used on its own when it holds a closed outline. Our own exports then import their foot directly, and users can name a layer FOOT to skip choosing.
+
+### 14.4 Units
+
+$INSUNITS gives the drawing unit. Supported: 1 in, 2 ft, 4 mm, 5 cm, 6 m, 9 mil, 13 µm. Everything converts to mm before chaining, so all tolerances below are in mm.
+
+- **Declared and plausible:** used. Plausible means the foot's largest dimension is 5–1000 mm (*tune*).
+- **Declared but implausible:** used, with a warning that shows the alternative: "This foot is 2.9 mm wide. Was it drawn in inches? It would be 73.7 mm." Some exporters write the wrong header.
+- **Missing or unitless (0):** guessed. If a circular hole matches the design's bore radius within 2 % in one unit, that unit wins. Otherwise mm, unless only inches give a plausible size.
+- The dialog always shows the unit (a dropdown) and the resulting size, so a wrong guess is visible and takes one click to fix. Nothing is ever scaled to fit.
+
+### 14.5 Finding closed outlines
+
+DXF stores each line and arc separately, in any order and direction. Closed loops are rebuilt from shared endpoints, found through a spatial hash (linear time).
+
+| Case | Handling |
+|---|---|
+| Ends within 0.002 mm (*tune*) | Joined silently (CAD rounding). |
+| Gap of 0.002–0.05 mm (*tune*) | Closed: both ends move to their midpoint. A line moves exactly; an arc keeps its sweep; a cubic moves its handle with its end. Noted: "Closed 2 small gaps (largest 0.03 mm)." |
+| Larger gap | The loop stays open, and its open ends are marked in the preview. If every open end has a partner within 1 mm, the dialog offers "Close gaps up to 0.4 mm". |
+| Exact duplicates (either direction, any layer) | Dropped and counted. Common in laser and CAM files. |
+| Overlapping collinear lines, overlapping arcs on the same circle | Merged before chaining. |
+| Zero-length entities, slivers under 0.002 mm | Dropped. |
+| Open chains (centre lines, construction lines, our export's reference curves) | Pruned from their free ends, repeatedly. Listed in the notes and drawn faintly in the preview. |
+| Junctions (three or more ends at one point after pruning) | Each connected group keeps only its outer boundary, traced by always taking the outermost edge at a junction. Internal lines (such as a construction line across the foot) are dropped, with a note. |
+| Crossings in the middle of entities (untrimmed sketch) | Not split. If the result crosses itself, the preview shows it, and the usual "outline crosses itself" error (§15) applies after import. The fix is to trim the sketch in CAD. |
+
+**Nesting.** Closed loops are nested by containment (point in polygon on the flattened loops) with the even-odd rule: a loop at even depth is a part outline, one at odd depth is a hole in it. Depth 2 covers small parts nested inside another part's hole on a cutting sheet.
+
+### 14.6 Choosing the foot and its holes
+
+**Which part.**
+1. The FOOT layer alone, if it has a closed outline (§14.3).
+2. Otherwise each part is scored. A circular hole with an obround hole whose axis passes through it scores highest, then a circular hole, then size.
+3. If one part clearly wins, it is selected. If not (several identical feet on a sheet, or no holes at all), the best guess is selected and the dialog asks the user to click the foot. Clicking another part always switches to it.
+
+**Bore.** A hole that is a full circle: one CIRCLE, arcs with one centre and radius adding up to 360°, or a faceted polygon whose vertices fit a circle within 1 % of its radius (*tune*). If several qualify, the bore is the one the slot's axis passes through, else the largest. A bore with a keyway or a flat isn't a circle, so it counts as no bore.
+
+**Slot.** A hole that is an obround: two parallel lines of equal length and two half arcs of the same radius (exact or faceted). It gives the slot's axis, centre, half-width and length.
+- If the axis misses the bore centre by more than 0.05 mm or 0.5° (*tune*), the slot is offset or angled. Only the centreline slot exists so far (§4.3), so it is used for orientation only (bore → slot centre), with a note: "The slot is 1.8 mm off the bore's centreline; this tool models a centreline slot."
+- A curved slot is not recognised. It counts as another hole and is noted.
+
+**Other holes** (lightening holes, bolt holes, engraved text cut as outlines) are not part of the model. They don't change the contact or the swept area (§4.6), but the wall checks (§15) don't see them, and exports won't include them. Note: "3 other holes aren't modelled and won't be in exports. Keep them in your CAD file." (Possible later: carry them through as fixed cut-outs, §17.)
+
+### 14.7 Placing the foot
+
+The outline must end up in the foot frame at neutral (§3.1): P1 at the origin, centreline vertical, slot above. Every placement is rigid (translation, rotation, optional reflection) plus the unit scale, so lines, arcs and cubics stay exact.
+
+| Found | P1 | Centreline |
+|---|---|---|
+| Bore and slot | Bore centre | Bore → slot centre is +y. Nothing to adjust. |
+| Bore only | Bore centre | The outline's mirror axis, if it has one through P1 (the candidates are its principal axes), else the drawing's +Y. Of the two directions along the axis, the one nearer the drawing's +Y. |
+| Neither | The drawing origin if it is inside the outline; otherwise the user clicks P1 in the preview (snapping to arc centres) | As above. |
+
+When no slot fixed the centreline, the dialog shows Rotate (±90° buttons and an angle field). For asymmetric feet it also shows **Flip**, for a foot drawn from the other side or for the robot's other module (the robot travels toward −x, §3.1). The preview draws the design's own bore and slot faintly at the result, so a wrong orientation is obvious.
+
+### 14.8 Slot and bore vs the design
+
+When a slot and bore are found, the file implies part of the mechanism (§4.5):
+
+| In the file | Implies |
+|---|---|
+| Distance from P1 to the slot centre | pin distance \|Ps − P0\| |
+| Slot length − slot width | 2L (if the slot was drawn exactly to length) |
+| Slot width / 2 | slot radius = pin radius + clearance |
+| Bore radius | cam radius + clearance (derived from L, the shaft and the minimum wall, §12.3) |
+
+- **All within 0.05 mm of the design:** nothing to show.
+- **Otherwise** the dialog shows the two side by side (File | This design) with a choice:
+  - **Use the file's slot** (the default, §17). The pin distance comes from the slot centre (the pin keeps its direction), L from the slot length, and the pin diameter from the slot width with the design's clearance kept. The analysis then describes the physical foot.
+  - **Keep this design's mechanism:** outline only. The generated slot may then hit the walls, which validation reports as usual.
+- If the slot was drawn with extra room at the ends, L inferred from its length comes out too large. The number is shown so the user can check it.
+- The bore can't be adopted, because its size follows from L, the shaft and the minimum wall. If it still differs after adopting L, a note says so: "Your bore is 15.0 mm; this design's is 16.2 mm. The tool's bore is used in the analysis and exports."
+- Feet count, shaft, pin direction and RPM are not in a foot drawing and never change.
+
+### 14.9 Building the editable outline
+
+Segments become nodes and edges (§12.3): a node at each segment's start; lines become line edges; arcs become arc edges with bulge tan(sweep/4); cubics become cubic edges with handles from their control points.
+
+- **Node modes.** Smooth where two cubics meet with collinear handles (within 0.1°), otherwise corner, as the generator does (§10.8). Tangent line–arc joints stay corners in the editor; the contact math reads smoothness from the geometry, not the mode (§11.3).
+- **Merging.** Consecutive collinear lines become one line, and consecutive arcs with the same centre and radius become one arc (CAD often splits circles into quadrants). Both are exact.
+- **Faceted curves.** Laser, CAM and drawing tools (and R12 spline-fit polylines) often export curves as hundreds of short lines. Every facet vertex is then a convex corner the foot rocks over. That gives corner contacts and contact jumps in stance (§15 warnings), a jagged path and noisy bob, plus hundreds of anchors that slow editing and analysis.
+  - *Detection:* 8 or more consecutive lines, each turning less than 15° and shorter than 10 % of the foot's size (*tune*). The limit is relative because flat bottoms exported to a chord tolerance get long facets: 6 mm at a 500 mm radius and 0.01 mm tolerance. Collinear lines are merged first, so a straight edge drawn in pieces isn't mistaken for facets.
+  - *Fix:* **Smooth faceted curves**, on by default when detected (§17). Each run is refitted with cubic Béziers that pass within 0.02 mm of the facet vertices, which lie on the original curve. Real corners (turns over 15°) and long straight lines are kept. Where the run turns one way only, each fitted cubic must have no inflection (the exact B′ × B″ test from §10.8); otherwise it is split and refitted, so smoothing never invents contact jumps.
+  - Note: "Smoothed 3 faceted curves (412 lines → 18 curves, within 0.02 mm)." Unticking it keeps the facets as drawn.
+- *Later:* **dense splines** (hundreds of control points, from a scan or a curve fit) could get the same refit, offered as **Simplify curves** when the outline would have over 60 anchors. For now they import as one cubic per knot span.
+- **Size.** Over 400 anchors after clean-up: a warning that editing and analysis will be slow.
+- **Mirror.** After placement, the outline is compared with its reflection about x = 0.
+  - Within 0.005 mm: Mirror turns on through `symmetrize` (§13.4), which moves the shape by at most that much.
+  - Within 0.2 mm: the dialog offers "Make symmetric (differs by up to 0.08 mm)", unticked.
+  - Otherwise Mirror is off.
+- Direction (CW or CCW) and the starting node don't matter: the analysis orients the outline (§11.3), and `symmetrize` builds the canonical form.
+
+### 14.10 The import dialog
+
+```
+┌ Import foot ─────────────────────────────────────────────┐
+│ ┌──────────────────────────────────────────────────────┐ │
+│ │ preview: other shapes faint, the foot solid,         │ │
+│ │ P1 cross, this design's bore and slot ghosted,       │ │
+│ │ open ends and crossings marked                       │ │
+│ └──────────────────────────────────────────────────────┘ │
+│ foot.dxf · 60.0 × 98.6 mm · 18 anchors · symmetric       │
+│ Units [mm ▾] from the file                               │
+│ Slot  [Use the file's | Keep this design's]              │  ← only on a mismatch,
+│        File      This design                             │    with the numbers
+│ Pin    36.00 mm  40.00 mm   (also L and slot width)      │
+│ Rotate [↺] [↻] Angle [0.0°]                              │  ← only when no slot fixes it
+│ [ ] Flip left to right                                   │  ← only for asymmetric feet
+│ [✓] Smooth faceted curves (288 short lines)              │  ← only when detected
+│ [ ] Make symmetric · [ ] Include hidden layers           │  ← only when relevant
+│ After import: Foot wall around the slot is 0.80 mm …     │  ← only if any errors
+│ ▸ 2 notes                                                │
+│                                     [Cancel]  [Import]   │
+└──────────────────────────────────────────────────────────┘
+```
+
+- Only the controls a file needs appear (§13's guiding rule). A clean file shows the preview, one summary line, Units and Import.
+- The preview pans and zooms like the other canvases. Clicking a part selects it, or places P1 when there is no bore (snapping to arc centres within 10 px). Red markers show open ends only when they are why nothing closes; loose construction lines are just drawn faint. Sizes use the display unit (mm or in), and the controls sit under the preview at every size.
+- The dialog and the reader load on demand (about 18 kB gzipped), like the DXF writer.
+- "After import" analyses the design as it would be (about 2 ms) and lists its errors, so problems show before importing. Import is still allowed: the result is an ordinary design to fix in the editor.
+- Notes (collapsed): ignored entities by type, skipped hidden layers (one toggle includes them), gaps closed, duplicates removed, approximated curves, other holes, an offset slot, the bore difference.
+- Later: drag a DXF onto the Foot editor.
+
+### 14.11 Errors
+
+Import stops, and the dialog says why in plain words, only when:
+- the file is not a DXF, or is a DWG or a binary DXF;
+- it has no usable geometry (only text, dimensions or solids);
+- everything is on hidden layers (the toggle is offered);
+- there is no closed outline (the preview marks the open ends in red, and offers to close gaps when every open end has a partner within 1 mm);
+- the file is over the size limit.
+
+Everything else imports, with notes.
+
+### 14.12 Code layout and tests
+
+```
+src/core/import/        pure TypeScript, loaded on demand
+  dxf/reader.ts         text → group-code pairs → header, layers, blocks, entities
+  dxf/entities.ts       entities → flat segments (OCS, blocks, ellipses, polylines)
+  dxf/nurbs.ts          Bézier extraction by blossoms, rational-arc test, fitted fallback, fit points
+  segments.ts           affine maps, exact segment transforms, endpoint moves, merging
+  loops.ts              overlaps and duplicates, endpoint graph, gaps, pruning, outer boundaries, nesting
+  features.ts           circle and obround detection (exact and faceted), bore and slot pairing
+  place.ts              rigid placement, mirror-axis search, symmetry error
+  simplify.ts           faceted-run detection, convexity-safe cubic refit
+  toOutline.ts          segments → Outline (modes, merging, long arcs split)
+  units.ts              $INSUNITS table, plausible sizes
+  importFoot.ts         runs the stages; returns parts, choices, placement, notes and the new design
+src/ui/layout/ImportDialog.tsx (+ importDialog.module.css), and importFootDxf in fileActions
+src/core/test/dxf.ts    builds small DXF files for tests
+```
+
+Everything after `dxf/entities.ts` takes plain segments, so a later SVG reader plugs in there.
+
+Tests (`dxf/dxf.test.ts`, `import.test.ts`):
+- **Sample feet:** `docs/test_foot_1.DXF` and `test_foot_2.DXF`, exported from SolidWorks (R2000, CRLF, mm, everything on layer 0, two watermark MTEXTs). Lines, arcs and one CIRCLE; the bore is at (0, 7), not the origin. Both give L = 8 and a pin distance of 36 from the slot, Mirror on, and a 7.004 mm slot. The file's bore (Ø35.40) is larger than the tool's Ø30.04, which the notes explain. The plain foot has no issues. The pronged foot (three prongs on the r = 80 bottom) shows corner-contact and contact-jump warnings, as it should: it rocks from prong to prong.
+- **Round trip:** each preset and an asymmetric foot go through `exportDxf` and back, with the rest of the parts sheet present. The result is the same outline to 10⁻⁶ mm (the precision of the nearest-point check), with the same mirror flag and the same bob and stride.
+- **Reader:** binary, DWG, non-DXF and damaged input give their messages. CRLF line ends, padded codes, a missing EOF and a byte-order mark are all read. Units and off or frozen layers are read.
+- **Entities:** bulge polylines, R12 POLYLINE/VERTEX (spline frame points skipped), arcs extruded along −Z (clockwise in world coordinates), a tilted extrusion skipped, INSERT with base point, rotation, mirroring and layer inheritance, block cycles and missing blocks, ignored types counted, and ellipses (exact arcs at ratio 1, within 0.001 mm otherwise).
+- **Splines:** each piece of a clamped or unclamped spline of degree 1–3 matches de Boor evaluation at the same parameter to 10⁻⁹ mm. A rational quadratic circle comes back as four exact arcs. Degree 5 and general rational splines fit within 0.001 mm. Fit points are interpolated through. Invalid knots are rejected.
+- **Loops:** shuffled and partly reversed entities give the same loops. Also even-odd nesting to depth 2, overlapping collinear lines, overlapping arcs across 0°, duplicates, an internal line, a loose line, small gaps closed, and larger gaps offered.
+- **Placement and units:** rotation, mirroring and translation are undone from the bore and slot. Flip restores an asymmetric foot drawn mirrored. P1 comes from the origin, or is picked when the origin is outside. An offset slot is reported. Several feet on a sheet are ambiguous until one is picked. Inches come from $INSUNITS, or are guessed from the bore. A wrong declared unit gets a warning.
+- **Smoothing and symmetry:** a foot flattened to 64 facets per curve comes back within 0.02 mm of the true outline, with a quarter of the anchors or fewer and no stance warnings; unsmoothed, it rocks on corners. A foot that is 0.05 mm off symmetric is offered Make symmetric. A bore drawn as a 72-gon is recognised.
+- **UI:** checked by hand with headless Chrome: both sample feet imported through the menu, two feet on a sheet (picking the other), a faceted unitless inch file at tablet-portrait size in dark mode, and an open outline (Close gaps, then picking P1).
+- **Still to do:** more real files, from Fusion 360, Onshape, FreeCAD, Inkscape and a laser-cutting service.
+
+Out of scope for now: DWG and binary DXF, 3D geometry, trimming or extending untrimmed sketches, importing extra holes as geometry, importing cams or frame plates, and kerf-offset cutting files (import the nominal profile).
 
 ---
 
@@ -1047,6 +1291,8 @@ Blocking errors stop the analysis, and the views show a message instead of resul
    - goals in time units (RPM), plus acceleration and swept-size goals;
    - saving the brief with the design file.
 9. **Later:** curved slots, design comparison, loads.
+10. ~~**DXF foot import** (§14.2–14.12).~~ Done.
+    *Later:* simplifying dense splines, dragging a DXF onto the editor, carrying extra holes through as cut-outs, SVG import.
 
 ## 17. Decisions and open questions
 
@@ -1063,10 +1309,18 @@ Decided (2026-10-20):
 - **Generator (§10):** a Design | Generate mode switch in the main window (not a popup); goals as Off / Limit / Goal with ideal, acceptable and importance; HiGHS in a worker, loaded on demand; space described as a box around the shaft; convex contact profiles only (confirmed by the user, 2026-10-20).
 - **Swept area:** exact outer boundary of the foot's sweep (plus the cam's), computed from the envelope condition rather than by sampling poses. If a foot isn't star-shaped about P0, the line falls back to the radial hull, which is never smaller than the true area.
 
+Decided (2026-10-24), for DXF import (§14.2):
+
+- **Only the outline is imported as geometry.** The file's bore and slot place the foot and cross-check the mechanism.
+- **Slot mismatch:** by default the file's slot sets L, the pin distance and the pin diameter, so the analysis describes the physical part. "Keep this design's" imports the outline only.
+- **Other holes:** reported and left out (not modelled, not exported). Carrying them through as cut-outs is a later option.
+- **Faceted curves:** smoothed by default, with a tickbox to keep them as drawn.
+
 Still open:
 
 1. **Default design:** the app opens with the §9 worked example. Should it be a different weight class or scale?
 2. **Left/right phasing:** analysing modules out of sync (roll, steering) is deferred.
+3. **DXF import, more real files:** so far only SolidWorks exports have been tried. Files from other CAD and laser tools would test the values marked *tune* (§14.12).
 
 ## 18. References
 

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { ParsedImport } from '../core/import/importFoot'
 import type { Units } from '../ui/format'
 import { readStorage, writeStorage } from './storage'
 
@@ -23,7 +24,7 @@ interface Preferences {
   chartRange: ChartRange
 }
 
-export type DialogId = 'save'
+export type DialogId = 'save' | 'import'
 
 /** Design: edit the current design. Generate: describe constraints and pick a generated design (SPEC §13.6). */
 export type AppMode = 'design' | 'generate'
@@ -36,6 +37,9 @@ interface UiState extends Preferences {
   dialog: DialogId | null
   openDialog(dialog: DialogId): void
   closeDialog(): void
+  /** The DXF being imported, while the import dialog is open */
+  importFile: ParsedImport | null
+  openImport(file: ParsedImport): void
   setPreference<K extends keyof Preferences>(key: K, value: Preferences[K]): void
   select(selection: EditorSelection): void
   notify(level: Notice['level'], text: string): void
@@ -78,7 +82,11 @@ export const useUiStore = create<UiState>()((set, get) => ({
     set({ dialog })
   },
   closeDialog() {
-    set({ dialog: null })
+    set({ dialog: null, importFile: null })
+  },
+  importFile: null,
+  openImport(file) {
+    set({ dialog: 'import', importFile: file })
   },
   setPreference(key, value) {
     set({ [key]: value } as Pick<Preferences, typeof key>)

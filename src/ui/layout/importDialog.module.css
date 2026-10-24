@@ -1,0 +1,147 @@
+.wide {
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+}
+
+.canvas {
+  display: flex;
+  height: clamp(220px, 42vh, 380px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.summary {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+  overflow-wrap: anywhere;
+}
+
+.error,
+.prompt,
+.warning {
+  margin: 0;
+  font-size: var(--font-sm);
+}
+
+.error {
+  color: var(--status-critical);
+}
+
+.prompt {
+  color: var(--accent-ink);
+}
+
+.warning {
+  color: var(--status-warning-ink);
+}
+
+.rows {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.rowLabel {
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+}
+
+.rowControl {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.full {
+  grid-column: 1 / -1;
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+}
+
+.compare {
+  border-collapse: collapse;
+  font-size: var(--font-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.compare th,
+.compare td {
+  padding: 2px 16px 2px 0;
+  text-align: left;
+  font-weight: 400;
+}
+
+.compare thead th,
+.compare tbody th {
+  color: var(--text-muted);
+}
+
+.checks {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.checks label {
+  white-space: normal;
+}
+
+.notes {
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+}
+
+.notes summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.notes ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.notes li + li {
+  margin-top: 3px;
+}
+
+/* Canvas */
+
+.other {
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 1;
+}
+
+.loose {
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.ghost circle,
+.ghost path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1;
+  stroke-dasharray: 5 3;
+}
+
+.p1 line {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+.openEnd circle {
+  fill: var(--status-critical);
+}

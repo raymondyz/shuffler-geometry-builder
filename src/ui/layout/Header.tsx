@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import type { Analysis } from '../../core/analysis/analyze'
 import { useDesignStore } from '../../state/designStore'
 import { useGeneratorStore } from '../../state/generatorStore'
@@ -8,9 +9,12 @@ import { Icon } from '../common/Icon'
 import { Menu } from '../common/Menu'
 import { SegmentedControl } from '../common/SegmentedControl'
 import type { Units } from '../format'
-import { exportDxfFile, exportSvgFile, newDesign, openDesign } from './fileActions'
+import { exportDxfFile, exportSvgFile, importFootDxf, newDesign, openDesign } from './fileActions'
 import { SaveDialog } from './SaveDialog'
 import styles from './layout.module.css'
+
+// The import dialog and the DXF reader load only when a DXF is opened
+const ImportDialog = lazy(() => import('./ImportDialog'))
 
 function NoticeBanner() {
   const notice = useUiStore((s) => s.notice)
@@ -51,6 +55,7 @@ export function Header({ analysis }: { analysis: Analysis }) {
         items={[
           { label: 'New design', onSelect: newDesign },
           { label: 'Open…', onSelect: openDesign },
+          { label: 'Import foot (DXF)…', onSelect: importFootDxf },
           { label: 'Save…', onSelect: () => openDialog('save') },
           { label: 'Export SVG', onSelect: () => exportSvgFile(analysis), disabled: !canExport, divider: true },
           { label: 'Export DXF', onSelect: () => exportDxfFile(analysis), disabled: !canExport },
@@ -81,6 +86,11 @@ export function Header({ analysis }: { analysis: Analysis }) {
       />
       <NoticeBanner />
       {dialog === 'save' && <SaveDialog />}
+      {dialog === 'import' && (
+        <Suspense fallback={null}>
+          <ImportDialog />
+        </Suspense>
+      )}
     </header>
   )
 }
