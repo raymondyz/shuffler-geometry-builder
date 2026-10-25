@@ -15,6 +15,8 @@ npm run lint       # oxlint (also keeps src/core free of React and app state)
 npm run build      # type-check and build to dist/
 ```
 
+**Hosting.** Pushing to `main` runs the tests and deploys to GitHub Pages (`.github/workflows/deploy.yml`). The public address is [raymondz.dev/tools/shuffler-builder](https://raymondz.dev/tools/shuffler-builder/): the portfolio's Cloudflare Worker forwards that path to the Pages address. The build uses relative URLs (`base: './'`), so it works at either address. The app has no client-side routes, which is what makes that possible.
+
 ## Using it
 
 - **Mechanism** (sidebar): number of feet, eccentricity L and the stationary shaft (pin) position. Shaft and pin sizes are under **Hardware**. The cam disc sizes itself to fit the shaft, using the minimum wall as its margin.

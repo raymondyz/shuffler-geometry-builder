@@ -4,6 +4,9 @@ import { defineConfig } from 'vite'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // Relative asset URLs, so the same build works at its GitHub Pages address and at
+  // raymondz.dev/tools/shuffler-builder/, where the portfolio's Cloudflare Worker serves it
+  base: './',
   plugins: [react()],
   // The generator worker imports HiGHS; pre-bundle it at startup so the dev server doesn't
   // discover it mid-run and reload the page
