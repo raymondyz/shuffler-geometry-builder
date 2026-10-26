@@ -14,8 +14,18 @@
 }
 
 .itemLabel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   color: var(--text-secondary);
   font-size: var(--font-sm);
+}
+
+/* The goal presets menu with its explanation beside it */
+.presetRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .pair {

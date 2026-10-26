@@ -1,4 +1,5 @@
-/* Design tokens. Colours are defined once per theme; components only use the roles. */
+/* Design tokens. Colours are defined once per theme; components only use the roles.
+   The light theme is the default; dark follows the system setting or the in-app switch. */
 :root {
   color-scheme: light;
   --surface-page: #f4f3f0;
@@ -52,6 +53,8 @@
   -webkit-font-smoothing: antialiased;
 }
 
+/* Dark theme: the system setting, unless the page forces light. Keep these tokens identical to the
+   forced-dark block below (src/ui/theme.test.ts checks). */
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme='light'])) {
     color-scheme: dark;
@@ -84,6 +87,39 @@
     --series-8: #e66767;
     --status-warning-ink: #fab219;
   }
+}
+
+/* Dark theme chosen with the in-app switch (data-theme on <html>, see src/ui/theme.ts) */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --surface-page: #0d0d0d;
+  --surface-1: #1a1a19;
+  --surface-hover: #242422;
+  --foot-fill: rgba(57, 135, 229, 0.1);
+  --text-primary: #f0efec;
+  --text-secondary: #c3c2b7;
+  --text-muted: #898781;
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.2);
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --accent: #3987e5;
+  --accent-strong: #5598e7;
+  --accent-wash: rgba(57, 135, 229, 0.18);
+  --accent-ink: #86b6ef;
+  --on-accent: #0b0b0b;
+  --envelope: rgba(240, 239, 236, 0.2);
+  --swept-fill: rgba(240, 239, 236, 0.06);
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+  --series-7: #9085e9;
+  --series-8: #e66767;
+  --status-warning-ink: #fab219;
 }
 
 *,

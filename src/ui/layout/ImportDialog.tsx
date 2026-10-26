@@ -18,6 +18,7 @@ import { useUiStore, useUnits } from '../../state/uiStore'
 import { Button } from '../common/Button'
 import { Checkbox } from '../common/Checkbox'
 import { Dialog } from '../common/Dialog'
+import { InfoTip } from '../common/InfoTip'
 import { NumberField } from '../common/NumberField'
 import { SegmentedControl } from '../common/SegmentedControl'
 import { Select } from '../common/Select'
@@ -197,12 +198,23 @@ export default function ImportDialog() {
         <span className={styles.rowControl}>
           <Select<UnitId> label="Drawing units" value={preview.units} options={UNITS.map((u) => ({ value: u.id, label: u.label }))} onChange={setUnits} />
           <span className={styles.hint}>{options.units ? '' : preview.unitsGuessed ? 'guessed' : 'from the file'}</span>
+          {!options.units && preview.unitsGuessed && (
+            <InfoTip label="guessed units">
+              The file doesn't say which unit it uses, so it was guessed from the bore and the overall size. Check the size above.
+            </InfoTip>
+          )}
         </span>
         {preview.unitsWarning && <p className={`${styles.warning} ${styles.full}`}>{preview.unitsWarning}</p>}
 
         {preview.mechanism && (
           <>
-            <span className={styles.rowLabel}>Slot</span>
+            <span className={styles.rowLabel}>
+              Slot
+              <InfoTip label="Slot">
+                The slot in the drawing sets L and the pin distance. Use the file's to match the real part; Keep this design's imports
+                only the outline.
+              </InfoTip>
+            </span>
             <span className={styles.rowControl}>
               <SegmentedControl<'file' | 'design'>
                 label="Mechanism"
@@ -234,21 +246,39 @@ export default function ImportDialog() {
 
       <div className={styles.checks}>
         {preview.design && !preview.symmetric && (
-          <Checkbox label="Flip left to right" title="For a foot drawn from the other side, or for the robot's other module" checked={options.flip} onChange={(flip) => set({ flip })} />
+          <Checkbox
+            label="Flip left to right"
+            info="Mirror the foot left to right: for a foot drawn from the other side, or for the robot's other module."
+            checked={options.flip}
+            onChange={(flip) => set({ flip })}
+          />
         )}
         {preview.faceted && (
           <Checkbox
             label={`Smooth faceted curves (${preview.faceted.lines} short lines)`}
-            title="Rebuild curves exported as many short lines, so the foot rolls instead of rocking on every corner"
+            infoLabel="Smooth faceted curves"
+            info="Curves exported as many short lines would make the foot rock on every corner. This rebuilds them as smooth curves, within 0.02 mm."
             checked={options.smooth}
             onChange={(smooth) => set({ smooth })}
           />
         )}
         {preview.nearSymmetry !== null && (
-          <Checkbox label={`Make symmetric (sides differ by up to ${fmt(preview.nearSymmetry)})`} checked={options.makeSymmetric} onChange={(makeSymmetric) => set({ makeSymmetric })} />
+          <Checkbox
+            label={`Make symmetric (sides differ by up to ${fmt(preview.nearSymmetry)})`}
+            infoLabel="Make symmetric"
+            info="Make the two sides exact mirror images, so the foot can be edited with Mirror on."
+            checked={options.makeSymmetric}
+            onChange={(makeSymmetric) => set({ makeSymmetric })}
+          />
         )}
         {preview.hiddenCount > 0 && (
-          <Checkbox label={`Include layers that are off or frozen (${preview.hiddenCount} lines and curves)`} checked={options.includeHidden} onChange={(includeHidden) => set({ includeHidden, part: null, pickedP1: null })} />
+          <Checkbox
+            label={`Include layers that are off or frozen (${preview.hiddenCount} lines and curves)`}
+            infoLabel="hidden layers"
+            info="Layers turned off or frozen in CAD usually hold construction geometry, so they are left out unless you include them."
+            checked={options.includeHidden}
+            onChange={(includeHidden) => set({ includeHidden, part: null, pickedP1: null })}
+          />
         )}
         {preview.error && preview.suggestedGap !== null && (
           <Button onClick={() => set({ gap: preview.suggestedGap! })}>Close gaps up to {fmt(preview.suggestedGap)}</Button>

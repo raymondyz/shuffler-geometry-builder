@@ -4,6 +4,7 @@ import { angleOf, fromAngle, length } from '../../../core/math/vec2'
 import { gestureProps } from '../../../state/designStore'
 import { useUiStore, useUnits } from '../../../state/uiStore'
 import { Button } from '../../common/Button'
+import { InfoTip } from '../../common/InfoTip'
 import { NumberField } from '../../common/NumberField'
 import { SegmentedControl } from '../../common/SegmentedControl'
 import { formatLength } from '../../format'
@@ -37,6 +38,10 @@ function NodeInspector({ analysis, id }: { analysis: Analysis; id: string }) {
     <div className={styles.inspector}>
       <div className={styles.inspectorHead}>
         <span className={styles.inspectorTitle}>Anchor</span>
+        <InfoTip label="anchor types">
+          Corner: the two handles move independently. Smooth: they stay in line, so the outline has no corner there. Symmetric: in
+          line and equal length.
+        </InfoTip>
         <SegmentedControl label="Anchor type" options={NODE_MODES} value={node.mode} onChange={(mode) => updateOutline((o) => ops.setNodeMode(o, node.id, mode))} />
         <span className={styles.grow} />
         <Button
@@ -54,8 +59,8 @@ function NodeInspector({ analysis, id }: { analysis: Analysis; id: string }) {
       <div className={styles.inspectorFields}>
         <NumberField layout="stacked" label="X" quantity="length" value={node.p.x} disabled={onAxis} onChange={(x) => set({ ...node.p, x })} title={onAxis ? 'On the mirror line' : undefined} />
         <NumberField layout="stacked" label="Y" quantity="length" value={node.p.y} onChange={(y) => set({ ...node.p, y })} />
-        <NumberField layout="stacked" label="r from P1" quantity="length" min={0} value={r} onChange={(v) => set(fromAngle(theta, v))} title="Distance from the cam bearing centre P1" />
-        <NumberField layout="stacked" label="θ about P1" quantity="angle" value={theta} onChange={(v) => set(fromAngle(v, r))} title="Angle from +x, counter-clockwise (−90° is straight down)" />
+        <NumberField layout="stacked" label="r from P1" quantity="length" min={0} value={r} onChange={(v) => set(fromAngle(theta, v))} info="Distance from the cam bearing centre P1." />
+        <NumberField layout="stacked" label="θ about P1" quantity="angle" value={theta} onChange={(v) => set(fromAngle(v, r))} info="Angle about P1, counter-clockwise from +x. −90° is straight down." />
       </div>
     </div>
   )
@@ -75,6 +80,7 @@ function EdgeInspector({ analysis, index }: { analysis: Analysis; index: number 
     <div className={styles.inspector}>
       <div className={styles.inspectorHead}>
         <span className={styles.inspectorTitle}>Edge</span>
+        <InfoTip label="edge types">Bézier: a curve shaped by two handles. Line: straight. Arc: part of a circle; drag its diamond to bend it.</InfoTip>
         <SegmentedControl label="Edge type" options={EDGE_KINDS} value={edge.kind} onChange={(kind) => updateOutline((o) => ops.setEdgeKind(o, index, kind))} />
         <span className={styles.grow} />
         <Button
@@ -98,7 +104,7 @@ function EdgeInspector({ analysis, index }: { analysis: Analysis; index: number 
             max={Math.PI * 1.9}
             value={4 * Math.atan(edge.bulge)}
             onChange={(sweep) => updateOutline((o) => ops.setEdgeBulge(o, index, Math.tan(sweep / 4)))}
-            title="Positive bends counter-clockwise"
+            info="How far the arc turns. Positive bends counter-clockwise."
             {...gestureProps}
           />
           {arc && <span className={styles.readout}>Radius {formatLength(arc.radius, units)}</span>}

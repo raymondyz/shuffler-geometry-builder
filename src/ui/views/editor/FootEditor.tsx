@@ -70,7 +70,7 @@ export function FootEditorActions({ analysis }: ViewProps) {
         label="Mirror"
         checked={mirror}
         onChange={setMirror}
-        title="Keep the foot symmetric about its centreline; edits on one side copy to the other. Turning it on keeps the right half."
+        info="Keep the foot symmetric about its centreline: edits on one side are copied to the other. Turning it on keeps the right half."
       />
       <Checkbox label="Snap to grid" checked={snap} onChange={(v) => setPreference('snap', v)} />
     </>

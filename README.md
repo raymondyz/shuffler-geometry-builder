@@ -40,6 +40,7 @@ npm run build      # type-check and build to dist/
   - **Use this design** replaces your design (undo brings it back).
   - The ground-contact profile is solved exactly (a linear program per mechanism). The rest of the foot is a compact convex shell around the bore and slot. See SPEC §10.
 - **Canvases** zoom with the wheel or a pinch and pan with a drag.
+- **ⓘ icons** explain a term, result or view. Hover, tap or tab to one to read it.
 - **File menu**: New, Open, **Save…** (⌘/Ctrl+S, asks for a name) a `.shuffler.json` design, or export the foot, cam variants and frame holes as **SVG** or **DXF** (exact lines, arcs and cubic splines, in mm, named after the design). The design also autosaves in the browser.
 - **Import foot (DXF)…** (File menu): bring in a foot drawn in CAD. See SPEC §14.2.
   - The bore and slot in the drawing place it in the foot frame. If the slot implies a different L or pin distance, the design adopts them, or you can keep yours.
@@ -48,6 +49,7 @@ npm run build      # type-check and build to dist/
   - A preview shows the result first. Anything the tool had to guess or leave out is listed in the notes.
   - Import is one undo step.
 - **Units**: everything is millimetres internally. The mm/in toggle changes only display and input.
+- **Theme**: the button beside mm/in picks Match the system (the default), Light or Dark. The choice is remembered.
 - **Shortcuts**: Space play/pause, ⌘/Ctrl+Z undo, ⌘/Ctrl+Shift+Z (or Ctrl+Y) redo, ⌘/Ctrl+S save, Delete removes the selected anchor, Escape clears the selection.
 
 Conventions: the cam turns counter-clockwise (φ increases) and the robot travels toward −x.
@@ -88,7 +90,8 @@ Tests live next to the code they cover (`*.test.ts`).
 
 ## Extending
 
-- **New view** (for example forward motion): write a component taking `{ analysis }` and add it to `src/ui/views/registry.ts` with an area. Views that share an area show as tabs, an optional `actions` component renders in the panel header, and `modes` limits it to Design or Generate. Use `usePlayhead` to follow the shared cam angle.
+- **New view** (for example forward motion): write a component taking `{ analysis }` and add it to `src/ui/views/registry.ts` with an area. Views that share an area show as tabs, an optional `actions` component renders in the panel header, and `modes` limits it to Design or Generate. Give it an `info` sentence so its ⓘ explains what it shows. Use `usePlayhead` to follow the shared cam angle.
+- **New input or result**: if its meaning isn't obvious, pass `info` (NumberField, Checkbox, SpanField) or add an `InfoTip` beside its label. Keep native `title` for naming icon buttons only.
 - **New generator goal**: add it to `GOALS` in `src/core/generate/brief.ts`, give it a linear expression in `solveProfile` (`src/core/generate/inner.ts`), and map its measured value in `judge` (`search.ts`).
 - **New slot geometry**: implement `TiltConstraint` (`src/core/mechanism/constraints/types.ts`), add its spec to the `ConstraintSpec` union and a factory in `registry.ts`, and add its inputs to the Mechanism section. The math for offset and curved slots is in SPEC §4.4.
 - **New editing behaviour** (like Mirror): implement `OutlineOps` (`src/core/design/outlineEdit.ts`). The editor gets the ops for the current mode from `useOutlineOps`.

@@ -18,4 +18,6 @@ export interface ViewDefinition {
   actions?: ComponentType<ViewProps>
   /** Modes the view appears in (default: all) */
   modes?: AppMode[]
+  /** What the view shows, behind an info icon beside its title */
+  info?: string
 }

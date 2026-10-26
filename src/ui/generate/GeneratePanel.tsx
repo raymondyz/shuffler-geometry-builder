@@ -5,6 +5,7 @@ import { useDesignAnalysis } from '../../state/useAnalysis'
 import { useDesignStore } from '../../state/designStore'
 import { Button } from '../common/Button'
 import { Checkbox } from '../common/Checkbox'
+import { InfoTip } from '../common/InfoTip'
 import controls from '../common/controls.module.css'
 import { NumberField } from '../common/NumberField'
 import { Section } from '../common/Section'
@@ -27,11 +28,14 @@ function LayoutSection({ brief, update }: { brief: Brief; update: Update }) {
       <Checkbox
         label="Symmetric"
         checked={brief.symmetric}
-        title="Mirrored foot with the pin on the centreline"
+        info="Search only mirror-symmetric feet with the pin on the centreline. The search is faster, and the motion is the same in both directions."
         onChange={(symmetric) => update((b) => ({ ...b, symmetric }))}
       />
       <div className={styles.item}>
-        <span className={styles.itemLabel}>Feet to try</span>
+        <span className={styles.itemLabel}>
+          Feet to try
+          <InfoTip label="Feet to try">Each number of feet picked here is searched, and the best design for each is listed.</InfoTip>
+        </span>
         <div className={styles.chips} role="group" aria-label="Numbers of feet to try">
           {Array.from({ length: MAX_FEET - MIN_FEET + 1 }, (_, i) => MIN_FEET + i).map((n) => (
             <button key={n} type="button" className={styles.chip} aria-pressed={brief.feet.includes(n)} onClick={() => toggleFeet(n)}>
@@ -46,7 +50,7 @@ function LayoutSection({ brief, update }: { brief: Brief; update: Update }) {
         fallback={brief.eccentricity}
         min={0.5}
         onChange={(v) => v && update((b) => ({ ...b, eccentricity: v }))}
-        title="Offset between the cam shaft and the cam disc centre"
+        info="How far the cam disc centre is offset from the cam shaft, as in the Mechanism section. Fixed, or a range to search."
       />
       <SpanField
         label="Pin height"
@@ -54,7 +58,7 @@ function LayoutSection({ brief, update }: { brief: Brief; update: Update }) {
         fallback={{ min: 40, max: 40 }}
         allowFree
         onChange={(pinHeight) => update((b) => ({ ...b, pinHeight }))}
-        title="Height of the stationary shaft above the cam shaft. Free: anything the walls and space allow."
+        info="Height of the pin above the cam shaft. Free lets the search use anything the walls and the space allow."
       />
       {!brief.symmetric && (
         <SpanField
@@ -63,7 +67,7 @@ function LayoutSection({ brief, update }: { brief: Brief; update: Update }) {
           fallback={brief.pinOffset}
           min={-1000}
           onChange={(v) => v && update((b) => ({ ...b, pinOffset: v }))}
-          title="Sideways position of the stationary shaft"
+          info="Sideways position of the pin, from the cam shaft."
         />
       )}
     </Section>
@@ -80,7 +84,7 @@ function SpaceSection({ brief, update }: { brief: Brief; update: Update }) {
         fallback={{ min: 55, max: 55 }}
         allowFree
         onChange={(rideHeight) => update((b) => ({ ...b, rideHeight }))}
-        title="Ride height: how high the cam shaft sits above the floor"
+        info="Ride height: how high the cam shaft sits above the floor."
       />
       <NumberField label="Room above shaft" quantity="length" min={1} value={brief.space.above} onChange={(above) => setSpace({ above })} />
       {brief.symmetric ? (
@@ -105,21 +109,27 @@ function SpaceSection({ brief, update }: { brief: Brief; update: Update }) {
 function GoalsSection({ brief, update, strideRef }: { brief: Brief; update: Update; strideRef: number }) {
   return (
     <Section title="Goals">
-      <select
-        className={controls.select}
-        aria-label="Fill in goals from a preset"
-        value=""
-        onChange={(e) => update((b) => ({ ...b, goals: presetGoals(e.target.value as GoalPreset, strideRef) }))}
-      >
-        <option value="" disabled>
-          Presets…
-        </option>
-        {GOAL_PRESETS.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.label}
+      <div className={styles.presetRow}>
+        <select
+          className={controls.select}
+          aria-label="Fill in goals from a preset"
+          value=""
+          onChange={(e) => update((b) => ({ ...b, goals: presetGoals(e.target.value as GoalPreset, strideRef) }))}
+        >
+          <option value="" disabled>
+            Presets…
           </option>
-        ))}
-      </select>
+          {GOAL_PRESETS.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+        <InfoTip label="goals">
+          Off: ignored. Limit: a hard requirement, in the metric's own units. Goal: an ideal value and the worst acceptable
+          one; the search improves the worst-off goal first, and Importance sets which goals give way. Presets fill in a sensible set.
+        </InfoTip>
+      </div>
       {GOALS.filter((g) => !(g.asymmetricOnly && brief.symmetric)).map((g) => (
         <GoalRow
           key={g.metric}
@@ -141,7 +151,7 @@ function ShapeSection({ brief, update }: { brief: Brief; update: Update }) {
         min={0.5}
         value={brief.minContactRadius}
         onChange={(minContactRadius) => update((b) => ({ ...b, minContactRadius }))}
-        title="Smallest radius of curvature where the foot touches the ground"
+        info="The tightest curve allowed where the foot touches the ground. Larger means less wear and contact stress, and no sharp corners there."
       />
       <NumberField
         label="Lift 10° after handoff"
@@ -149,7 +159,7 @@ function ShapeSection({ brief, update }: { brief: Brief; update: Update }) {
         min={0}
         value={brief.handoffLift * LIFT_ANGLE}
         onChange={(v) => update((b) => ({ ...b, handoffLift: v / LIFT_ANGLE }))}
-        title="How far the other feet must have risen 10° of cam after a handoff. Zero allows two feet on the ground at once, which can scrub."
+        info="How far the other feet must have risen 10° of cam after a handoff. Zero lets two feet share the ground, which can make one scrub."
       />
     </Section>
   )

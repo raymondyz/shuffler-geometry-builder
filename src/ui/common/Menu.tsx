@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button } from './Button'
+import { Icon, type IconName } from './Icon'
 import styles from './controls.module.css'
 
 export interface MenuItem {
@@ -8,10 +9,23 @@ export interface MenuItem {
   disabled?: boolean
   /** Draw a divider above this item */
   divider?: boolean
+  icon?: IconName
+  /** For a list of choices: marks the current one */
+  checked?: boolean
+}
+
+interface MenuProps {
+  /** Button text, or its accessible name when `icon` is given */
+  label: string
+  items: MenuItem[]
+  /** Show this icon on the button instead of the label */
+  icon?: IconName
+  /** Open the list towards the left, for a button near the right edge */
+  alignEnd?: boolean
 }
 
 /** A button that opens a short list of actions. Closes on selection, outside click or Escape. */
-export function Menu({ label, items }: { label: string; items: MenuItem[] }) {
+export function Menu({ label, items, icon, alignEnd = false }: MenuProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -33,16 +47,29 @@ export function Menu({ label, items }: { label: string; items: MenuItem[] }) {
 
   return (
     <div ref={ref} className={styles.menu}>
-      <Button aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
-        {label} <span aria-hidden="true">▾</span>
+      {/* An icon menu shows just the icon: it says what the menu is, and a caret would cost header width */}
+      <Button
+        icon={icon}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={icon ? label : undefined}
+        title={icon ? label : undefined}
+        onClick={() => setOpen(!open)}
+      >
+        {!icon && (
+          <>
+            {label} <span aria-hidden="true">▾</span>
+          </>
+        )}
       </Button>
       {open && (
-        <div role="menu" className={styles.menuList}>
+        <div role="menu" className={[styles.menuList, alignEnd ? styles.menuEnd : ''].filter(Boolean).join(' ')}>
           {items.map((item) => (
             <button
               key={item.label}
               type="button"
-              role="menuitem"
+              role={item.checked === undefined ? 'menuitem' : 'menuitemradio'}
+              aria-checked={item.checked}
               className={[styles.menuItem, item.divider ? styles.menuDivider : ''].filter(Boolean).join(' ')}
               disabled={item.disabled}
               onClick={() => {
@@ -50,7 +77,9 @@ export function Menu({ label, items }: { label: string; items: MenuItem[] }) {
                 item.onSelect()
               }}
             >
-              {item.label}
+              {item.icon && <Icon name={item.icon} />}
+              <span className={styles.menuLabel}>{item.label}</span>
+              {item.checked && <span aria-hidden="true">✓</span>}
             </button>
           ))}
         </div>

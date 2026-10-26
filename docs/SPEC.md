@@ -729,7 +729,7 @@ src/
                        + rAF loop), storage (safe localStorage), useAnalysis (design and preview analyses)
   workers/             generate.worker (loads HiGHS, runs the search), generateProtocol (messages)
   ui/
-    common/            Button, Icon, NumberField, SegmentedControl, Select, Checkbox, Menu, Dialog, Panel, Section
+    common/            Button, Icon, InfoTip, NumberField, SegmentedControl, Select, Checkbox, Menu, Dialog, Panel, Section
     plot/              Viewport (pan/zoom world view) + viewportContext, Legend, ticks, paths
     views/             types, registry, ViewArea, palette, path/PathView, height/HeightChart,
                        editor/ (FootEditor, FootPreview, EditorCanvas, Inspector, Overlays, editorBounds,
@@ -846,6 +846,7 @@ interface ViewDefinition {
   area: 'primary' | 'secondary' | 'bottom'               // views sharing an area become tabs
   component: React.ComponentType<{ analysis: Analysis }>
   actions?: React.ComponentType<{ analysis: Analysis }>  // controls/legend in the panel header
+  info?: string                                          // what the view shows, behind an ⓘ beside its title
 }
 ```
 
@@ -858,7 +859,7 @@ interface ViewDefinition {
 ### 12.6 State and playhead
 
 - `designStore` (zustand) holds the design and its undo/redo history. A slider or drag gesture is merged into one undo entry. It autosaves to localStorage (debounced).
-- `uiStore` holds the app mode (Design or Generate), display preferences (units, show all feet, show swept area, snap, chart range; persisted), the editor selection, notices and the open dialog.
+- `uiStore` holds the app mode (Design or Generate), display preferences (units, theme, show all feet, show swept area, snap, chart range; persisted), the editor selection, notices and the open dialog.
 - `generatorStore` holds the brief (persisted in the browser), the run status and progress, the candidates and the selected one. The search runs in `workers/generate.worker` and messages carry a request id, so a stopped or superseded run is ignored; Stop terminates the worker. `useAnalysis()` returns the selected candidate's analysis in Generate mode, through a separate memoised analyser, and the design's otherwise. `useDesignAnalysis()` always returns the design's.
 - The `playhead` (current φ, whole revolutions completed, playing, speed) is a separate tiny store driven by `requestAnimationFrame`. Counting revolutions keeps travel-based animation (the moving ground) continuous across the 360° → 0° wrap; scrubbing stays within the current revolution. Views subscribe through zustand selectors and only update the animated elements, so panels don't re-render 60 times a second. The playhead is shared, so the animation, the height-chart cursor and every future view stay in sync, and scrubbing any view moves all of them.
 - All localStorage access goes through `state/storage`, which never throws (private windows, blocked storage).
@@ -898,11 +899,19 @@ Checked by hand during development, not automated yet:
 
 Guiding rule: show only what matters while tuning, and keep the rest one click away. Bob, stride and the main smoothness numbers are always visible; secondary results, hardware sizes and shaft speed are in collapsed sections.
 
+**Explanations (ⓘ).** Anything a user might not understand has a small, muted info icon beside its label. That covers results, mechanism and hardware inputs, the Generate brief, each view (beside its title or active tab), the inspector's anchor and edge types, the Fit column, the mode switch and the import options.
+- **Opening it:** the explanation (`InfoTip`) opens on hover, on keyboard focus, or on a tap, since tablets have no hover. Escape, a tap elsewhere or leaving the icon closes it.
+- **Placement:** it stays inside the window and follows the icon when the page scrolls. Inside a modal dialog it renders inside the dialog, so it shows above the modal.
+- **Look:** it uses the theme's own surface and text colours with a border, so it matches light and dark mode.
+- **Native hover titles:** used only to name icon buttons and give shortcuts (Undo, Fit, Play), because users don't know they exist and touch screens never show them.
+- **Extending:** a new view explains itself with the registry's `info` text. New controls pass `info` to NumberField, Checkbox or SpanField.
+- **Wording:** a sentence or two in plain words, saying what the thing is and, where it helps, which way is better.
+
 ### 13.1 Layout (desktop; stacks vertically on narrow screens)
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ Title  Design name  File ▾  ↶ ↷  [Design│Generate]                mm│in  │
+│ Title  Design name  File ▾  ↶ ↷  [Design│Generate] ⓘ        ◐  mm│in  │
 ├───────────────┬──────────────────────────────┬───────────────────────────┤
 │ Mechanism     │ Foot path (animation)         │ Foot editor               │
 │ (N, L, pin)   │                               │                           │
@@ -915,6 +924,8 @@ Guiding rule: show only what matters while tuning, and keep the rest one click a
 ```
 
 The design's name sits next to the app title. The File menu holds New, Open, Import foot (DXF)… (§14.2), Save…, Export SVG and Export DXF. Save… (or ⌘/Ctrl+S) asks for a name. The name is stored in the design, shown next to the app title, and used for file names: `<name>.shuffler.json`, `<name>-parts.svg/.dxf`. Each view's legend and controls sit in its panel header. Canvases zoom with the wheel or a pinch, pan with a drag, and have one Fit button.
+
+**Theme.** The ◐ button (its icon shows the current choice) opens Match the system, Light or Dark. Match the system is the default and follows the device's light or dark setting. A chosen theme is remembered with the other display preferences and set on `<html>` as `data-theme`; `index.html` applies it before the first paint, so the page never flashes the other theme. The dark colour tokens appear twice in `index.css`, once for the system setting and once for the switch, and a test keeps them identical. Everything, tooltips included, draws from the same tokens.
 
 **Shortcuts:** Space plays or pauses; ⌘/Ctrl+Z undoes and ⌘/Ctrl+Shift+Z or Ctrl+Y redoes; ⌘/Ctrl+S opens Save…; in the editor, Delete removes the selected anchor and Escape clears the selection. Apart from ⌘/Ctrl+S, shortcuts are ignored while typing in a text field.
 
@@ -965,7 +976,7 @@ The generator (§10) is a mode of the main window, not a popup.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ Title  Design name  File ▾  ↶ ↷  [Design│Generate]                mm│in  │
+│ Title  Design name  File ▾  ↶ ↷  [Design│Generate] ⓘ        ◐  mm│in  │
 ├───────────────┬──────────────────────────────┬───────────────────────────┤
 │ Layout        │ Foot path: candidate         │ Foot (read-only preview)  │
 │ Space         │ + space box + swept area     │                           │

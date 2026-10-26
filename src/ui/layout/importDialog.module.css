@@ -46,6 +46,9 @@
 }
 
 .rowLabel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   color: var(--text-secondary);
   font-size: var(--font-sm);
 }

@@ -1,4 +1,5 @@
 import type { GoalInfo, GoalMode, GoalSetting, Importance } from '../../core/generate/brief'
+import { InfoTip } from '../common/InfoTip'
 import { NumberField } from '../common/NumberField'
 import { SegmentedControl } from '../common/SegmentedControl'
 import styles from './generate.module.css'
@@ -27,9 +28,12 @@ export function GoalRow({ info, setting, onChange }: GoalRowProps) {
   const lower = info.better === 'lower'
   const quantity = info.quantity
   return (
-    <div className={[styles.goal, setting.mode === 'off' ? styles.goalOff : ''].join(' ')} title={info.description}>
+    <div className={[styles.goal, setting.mode === 'off' ? styles.goalOff : ''].join(' ')}>
       <div className={styles.itemHead}>
-        <span className={styles.itemLabel}>{info.label}</span>
+        <span className={styles.itemLabel}>
+          {info.label}
+          <InfoTip label={info.label}>{info.description}</InfoTip>
+        </span>
         <div className={styles.small}>
           <SegmentedControl label={`${info.label}: off, limit or goal`} value={setting.mode} onChange={(mode) => set({ mode })} options={MODES} />
         </div>

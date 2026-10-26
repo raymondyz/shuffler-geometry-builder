@@ -12,6 +12,9 @@
 }
 
 .rowLabel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   color: var(--text-secondary);
   font-size: var(--font-sm);
 }
@@ -40,6 +43,9 @@
 }
 
 .tileLabel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   color: var(--text-secondary);
   font-size: var(--font-xs);
 }
@@ -65,6 +71,9 @@
 }
 
 .metricLabel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   color: var(--text-secondary);
   font-size: var(--font-sm);
 }

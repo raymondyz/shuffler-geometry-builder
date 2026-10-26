@@ -1,4 +1,6 @@
+import type { ReactNode } from 'react'
 import type { Span } from '../../core/generate/brief'
+import { InfoTip } from '../common/InfoTip'
 import { NumberField, type Quantity } from '../common/NumberField'
 import { SegmentedControl } from '../common/SegmentedControl'
 import styles from './generate.module.css'
@@ -15,13 +17,14 @@ interface SpanFieldProps {
   allowFree?: boolean
   quantity?: Quantity
   min?: number
-  title?: string
+  /** Explanation shown by an info icon beside the label */
+  info?: ReactNode
 }
 
 const modeOf = (v: Span | null): SpanMode => (v === null ? 'free' : v.min === v.max ? 'fixed' : 'range')
 
 /** A dimension the generator may hold fixed, vary within a range, or leave free. */
-export function SpanField({ label, value, onChange, fallback, allowFree = false, quantity = 'length', min = 0, title }: SpanFieldProps) {
+export function SpanField({ label, value, onChange, fallback, allowFree = false, quantity = 'length', min = 0, info }: SpanFieldProps) {
   const mode = modeOf(value)
   const setMode = (next: SpanMode) => {
     if (next === mode) return
@@ -36,9 +39,12 @@ export function SpanField({ label, value, onChange, fallback, allowFree = false,
     ...(allowFree ? [{ value: 'free' as const, label: 'Free' }] : []),
   ]
   return (
-    <div className={styles.item} title={title}>
+    <div className={styles.item}>
       <div className={styles.itemHead}>
-        <span className={styles.itemLabel}>{label}</span>
+        <span className={styles.itemLabel}>
+          {label}
+          {info && <InfoTip label={label}>{info}</InfoTip>}
+        </span>
         <div className={styles.small}>
           <SegmentedControl label={`${label}: fixed, range or free`} value={mode} onChange={setMode} options={options} />
         </div>

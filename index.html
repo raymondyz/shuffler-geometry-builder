@@ -6,6 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Shuffler Geometry Builder</title>
     <meta name="description" content="Design single-cam pivoting-foot shuffler drives: bob, stride and smoothness, live." />
+    <script>
+      // A theme chosen in the app (light or dark, not system) applies before the first paint, so the
+      // page never flashes the other one. The key matches PREFS_KEY in src/state/uiStore.ts.
+      try {
+        var theme = JSON.parse(localStorage.getItem('shuffler-geometry-builder:prefs:v1') || '{}').theme
+        if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,7 +1,8 @@
-import { useId, useState, type KeyboardEvent } from 'react'
+import { useId, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { degToRad, radToDeg } from '../../core/math/angle'
 import { useUnits } from '../../state/uiStore'
 import { formatNumber, fromDisplay, lengthDecimals, lengthStep, toDisplay, type Units } from '../format'
+import { InfoTip } from './InfoTip'
 import styles from './controls.module.css'
 
 /**
@@ -25,6 +26,8 @@ export interface NumberFieldProps {
   /** Optional slider range in internal units */
   slider?: { min: number; max: number }
   title?: string
+  /** Explanation shown by an info icon beside the label */
+  info?: ReactNode
   disabled?: boolean
   className?: string
   /** Inline puts the label beside the input; stacked puts it above (compact rows) */
@@ -77,6 +80,7 @@ export function NumberField({
   suffix = '',
   slider,
   title,
+  info,
   disabled,
   className,
   layout = 'inline',
@@ -132,9 +136,12 @@ export function NumberField({
 
   return (
     <div className={[styles.field, layout === 'stacked' ? styles.stacked : '', className].filter(Boolean).join(' ')} title={title}>
-      <label className={styles.label} htmlFor={id}>
-        {label}
-      </label>
+      <span className={styles.labelRow}>
+        <label className={styles.label} htmlFor={id}>
+          {label}
+        </label>
+        {info && <InfoTip label={label}>{info}</InfoTip>}
+      </span>
       <div className={styles.inputWrap}>
         <input
           id={id}

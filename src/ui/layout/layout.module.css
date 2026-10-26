@@ -37,8 +37,12 @@
   gap: 4px;
 }
 
-.spacer {
-  flex: 1;
+/* Pushed to the right of whichever row it lands on */
+.headerEnd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
 }
 
 .notice {

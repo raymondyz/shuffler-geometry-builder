@@ -182,7 +182,7 @@ export function Viewport({ bounds, children, overlay, onBackgroundClick, ariaLab
       </svg>
       {overlay}
       <div className={styles.zoomControls}>
-        <Button icon="fit" title="Fit to view (scroll or pinch to zoom, drag to pan)" aria-label="Fit to view" onClick={fit} />
+        <Button icon="fit" title="Fit to view" aria-label="Fit to view" onClick={fit} />
       </div>
     </div>
   )

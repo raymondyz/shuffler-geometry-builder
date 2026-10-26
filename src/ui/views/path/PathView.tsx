@@ -148,7 +148,8 @@ export function PathViewActions() {
       {!generating && (
         <Checkbox
           label={<><Swatch color="var(--text-muted)" kind="area" />Swept area</>}
-          title="Everything the foot and cam occupy over a revolution: keep other parts out of it"
+          infoLabel="Swept area"
+          info="Everything the foot and cam pass through over a revolution. Keep frame parts, standoffs and armour out of it, in the plane of each foot."
           checked={showSwept}
           onChange={(v) => setPreference('showSwept', v)}
         />

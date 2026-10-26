@@ -131,3 +131,16 @@
   background: var(--accent-wash);
   color: var(--accent-ink);
 }
+
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* A tab plus, when it is active, the info icon for its view */
+.tabGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}

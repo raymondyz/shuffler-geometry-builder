@@ -5,6 +5,7 @@ import { useGeneratorStore } from '../../../state/generatorStore'
 import { useUnits } from '../../../state/uiStore'
 import { Button } from '../../common/Button'
 import { EmptyState } from '../../common/Panel'
+import { InfoTip } from '../../common/InfoTip'
 import { formatLength, formatPercent, formatPerRad, type Units } from '../../format'
 import styles from './candidates.module.css'
 
@@ -73,7 +74,15 @@ export function CandidatesView() {
             {goals.map((g) => (
               <th key={g.metric}>{g.label}</th>
             ))}
-            <th>Fit</th>
+            <th>
+              <span className={styles.headWithInfo}>
+                Fit
+                <InfoTip label="Fit">
+                  Ideal: every goal within 5 % of its ideal. Good, then Acceptable: further from ideal, but within the acceptable values.
+                  Misses: names the goal, limit, space or ride height it fails.
+                </InfoTip>
+              </span>
+            </th>
           </tr>
         </thead>
         <tbody>

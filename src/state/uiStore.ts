@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { ParsedImport } from '../core/import/importFoot'
 import type { Units } from '../ui/format'
+import type { Theme } from '../ui/theme'
 import { readStorage, writeStorage } from './storage'
 
 export type EditorSelection =
@@ -18,6 +19,7 @@ export interface Notice {
 
 interface Preferences {
   units: Units
+  theme: Theme
   showAllFeet: boolean
   showSwept: boolean
   snap: boolean
@@ -46,9 +48,10 @@ interface UiState extends Preferences {
   dismissNotice(): void
 }
 
+// index.html reads the theme from this key before the first paint; keep the two in step
 const PREFS_KEY = 'shuffler-geometry-builder:prefs:v1'
 
-const defaults: Preferences = { units: 'mm', showAllFeet: false, showSwept: false, snap: true, chartRange: 'full' }
+const defaults: Preferences = { units: 'mm', theme: 'system', showAllFeet: false, showSwept: false, snap: true, chartRange: 'full' }
 
 function loadPreferences(): Preferences {
   try {
@@ -56,6 +59,7 @@ function loadPreferences(): Preferences {
     const saved = raw ? (JSON.parse(raw) as Partial<Preferences>) : {}
     return {
       units: saved.units === 'in' ? 'in' : 'mm',
+      theme: saved.theme === 'light' || saved.theme === 'dark' ? saved.theme : 'system',
       showAllFeet: typeof saved.showAllFeet === 'boolean' ? saved.showAllFeet : defaults.showAllFeet,
       showSwept: typeof saved.showSwept === 'boolean' ? saved.showSwept : defaults.showSwept,
       snap: typeof saved.snap === 'boolean' ? saved.snap : defaults.snap,
@@ -90,8 +94,8 @@ export const useUiStore = create<UiState>()((set, get) => ({
   },
   setPreference(key, value) {
     set({ [key]: value } as Pick<Preferences, typeof key>)
-    const { units, showAllFeet, showSwept, snap, chartRange } = get()
-    writeStorage(PREFS_KEY, JSON.stringify({ units, showAllFeet, showSwept, snap, chartRange }))
+    const { units, theme, showAllFeet, showSwept, snap, chartRange } = get()
+    writeStorage(PREFS_KEY, JSON.stringify({ units, theme, showAllFeet, showSwept, snap, chartRange }))
   },
   select(selection) {
     set({ selection })

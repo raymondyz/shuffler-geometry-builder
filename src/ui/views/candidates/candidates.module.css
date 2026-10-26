@@ -66,3 +66,9 @@
 .miss {
   color: var(--status-warning-ink);
 }
+
+.headWithInfo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}

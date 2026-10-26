@@ -5,13 +5,21 @@ import { useGeneratorStore } from '../../state/generatorStore'
 import { useUiStore, type AppMode } from '../../state/uiStore'
 import { useDesignAnalysis } from '../../state/useAnalysis'
 import { Button } from '../common/Button'
-import { Icon } from '../common/Icon'
+import { Icon, type IconName } from '../common/Icon'
+import { InfoTip } from '../common/InfoTip'
 import { Menu } from '../common/Menu'
 import { SegmentedControl } from '../common/SegmentedControl'
 import type { Units } from '../format'
+import type { Theme } from '../theme'
 import { exportDxfFile, exportSvgFile, importFootDxf, newDesign, openDesign } from './fileActions'
 import { SaveDialog } from './SaveDialog'
 import styles from './layout.module.css'
+
+const THEMES: { value: Theme; label: string; icon: IconName }[] = [
+  { value: 'system', label: 'Match the system', icon: 'system' },
+  { value: 'light', label: 'Light', icon: 'sun' },
+  { value: 'dark', label: 'Dark', icon: 'moon' },
+]
 
 // The import dialog and the DXF reader load only when a DXF is opened
 const ImportDialog = lazy(() => import('./ImportDialog'))
@@ -35,6 +43,7 @@ export function Header({ analysis }: { analysis: Analysis }) {
   const undo = useDesignStore((s) => s.undo)
   const redo = useDesignStore((s) => s.redo)
   const units = useUiStore((s) => s.units)
+  const theme = useUiStore((s) => s.theme)
   const setPreference = useUiStore((s) => s.setPreference)
   const canExport = analysis.outline !== null
   const dialog = useUiStore((s) => s.dialog)
@@ -74,16 +83,29 @@ export function Header({ analysis }: { analysis: Analysis }) {
           { value: 'generate', label: 'Generate', title: 'Describe what you need and let the tool design the foot and mechanism' },
         ]}
       />
-      <span className={styles.spacer} />
-      <SegmentedControl<Units>
-        label="Display units"
-        value={units}
-        onChange={(v) => setPreference('units', v)}
-        options={[
-          { value: 'mm', label: 'mm' },
-          { value: 'in', label: 'in' },
-        ]}
-      />
+      <InfoTip label="Design and Generate">
+        Design: shape the foot and mechanism yourself. Generate: describe the space and what matters (bob, stride, smoothness),
+        and the tool designs candidates for you to compare and use.
+      </InfoTip>
+      {/* Display settings stay together at the right, even when a long design name wraps the header */}
+      <div className={styles.headerEnd}>
+        {/* One icon button rather than three, so the header still fits on one row on a tablet */}
+        <Menu
+          label={`Theme: ${THEMES.find((t) => t.value === theme)?.label.toLowerCase()}`}
+          icon={THEMES.find((t) => t.value === theme)?.icon}
+          alignEnd
+          items={THEMES.map((t) => ({ label: t.label, icon: t.icon, checked: t.value === theme, onSelect: () => setPreference('theme', t.value) }))}
+        />
+        <SegmentedControl<Units>
+          label="Display units"
+          value={units}
+          onChange={(v) => setPreference('units', v)}
+          options={[
+            { value: 'mm', label: 'mm' },
+            { value: 'in', label: 'in' },
+          ]}
+        />
+      </div>
       <NoticeBanner />
       {dialog === 'save' && <SaveDialog />}
       {dialog === 'import' && (
